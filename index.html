@@ -1,0 +1,3260 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>휘리릭~ 지나가는 사진을 잡아라! (3-2 사회 교과서 교통수단 편)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tone.js (교실 효과음·팡파레 생성, 외부 오디오 URL 미사용) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- Google Fonts: Jua + Noto Sans KR -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+
+    <style>
+        /* =========================================================
+         * 테마 변수 (모드에 따라 칠판 배경 및 프레임 색상 자동 전환)
+         * ========================================================= */
+        :root {
+            --stage-from: #1e293b;
+            --stage-to: #0f172a;
+            --frame-outer: #78350f;
+            --frame-inner: #b45309;
+        }
+        body.theme-past {
+            --stage-from: #452719;
+            --stage-to: #26140c;
+            --frame-outer: #78350f;
+            --frame-inner: #d97706;
+        }
+        body.theme-present {
+            --stage-from: #163a5f;
+            --stage-to: #0b1e36;
+            --frame-outer: #1e3a8a;
+            --frame-inner: #38bdf8;
+        }
+        body.theme-all {
+            --stage-from: #134e4a;
+            --stage-to: #092624;
+            --frame-outer: #115e59;
+            --frame-inner: #2dd4bf;
+        }
+        body.theme-bonus {
+            --stage-from: #4a1d6b;
+            --stage-to: #240c38;
+            --frame-outer: #6b21a8;
+            --frame-inner: #e879f9;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: #f1f5f9;
+            color: #0f172a;
+            overflow-x: hidden;
+            user-select: none;
+        }
+
+        .font-jua {
+            font-family: 'Jua', 'Noto Sans KR', sans-serif;
+        }
+
+        /* 중앙 교실 칠판 무대 (대형 화면에서도 사진이 크게 보이도록 높이 대폭 확대) */
+        .stage-board {
+            position: relative;
+            overflow: hidden;
+            min-height: 520px;
+            background: radial-gradient(circle at center, var(--stage-from) 0%, var(--stage-to) 100%);
+            box-shadow: inset 0 0 65px rgba(0, 0, 0, 0.55);
+            border: 10px solid var(--frame-outer);
+            outline: 3px solid var(--frame-inner);
+            transition: background 0.35s ease, border-color 0.35s ease;
+        }
+        @media (min-width: 768px) {
+            .stage-board {
+                min-height: 600px;
+            }
+        }
+        @media (min-width: 1280px) {
+            .stage-board {
+                min-height: 650px;
+            }
+        }
+        @media (max-width: 640px) {
+            .stage-board {
+                min-height: 440px;
+                border-width: 7px;
+            }
+        }
+
+        /* 지나가는 실제 사진 폴라로이드 카드 (대형 확대 + 가로/세로 어떤 비율도 잘림 없이 온전히 표시) */
+        .fly-card {
+            position: absolute;
+            width: min(580px, 88vw);
+            height: min(440px, 65vh);
+            z-index: 20;
+            background: #ffffff;
+            border-radius: 22px;
+            padding: 12px 12px 34px 12px;
+            box-shadow: 0 28px 60px rgba(0, 0, 0, 0.6), 0 0 0 3px rgba(255, 255, 255, 0.94);
+            will-change: transform, opacity, filter;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+        }
+        @media (max-width: 640px) {
+            .fly-card {
+                width: 88vw;
+                height: 340px;
+                padding: 10px 10px 28px 10px;
+            }
+        }
+
+        .fly-card-photo-wrap {
+            width: 100%;
+            flex: 1;
+            min-height: 0;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #0f172a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .fly-card-photo-wrap img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        /* 드래그 앤 드롭 하이라이트 */
+        .drop-active {
+            outline: 4px dashed #4f46e5;
+            outline-offset: -4px;
+            background-color: #eef2ff !important;
+        }
+
+        /* 로딩 스피너 */
+        .spinner {
+            width: 28px;
+            height: 28px;
+            border: 4px solid rgba(255, 255, 255, 0.25);
+            border-top-color: #fbbf24;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 팝업 등장 애니메이션 */
+        @keyframes popIn {
+            0% { transform: scale(0.85); opacity: 0; }
+            70% { transform: scale(1.03); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop {
+            animation: popIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        /* 폭죽 파티클 */
+        .confetti-piece {
+            position: fixed;
+            z-index: 90;
+            pointer-events: none;
+            border-radius: 3px;
+            animation: confettiFall 1.7s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+        }
+        @keyframes confettiFall {
+            0% {
+                transform: translate(0, 0) rotate(0deg) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(var(--tx), var(--ty)) rotate(var(--rot)) scale(0.6);
+                opacity: 0;
+            }
+        }
+
+        /* 게임형 입체 버튼 효과 */
+        .btn-3d {
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+        }
+        .btn-3d:active {
+            transform: translateY(2px);
+        }
+
+        /* 엿보기 진행바 애니메이션 */
+        @keyframes shrinkBar {
+            from { width: 100%; }
+            to { width: 0%; }
+        }
+        .peek-shrinking {
+            animation: shrinkBar 1.5s linear forwards;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- =========================================================
+         상단 공통 헤더 (로고 · 빠른 모드 전환 · 교실 도구 버튼)
+         ========================================================= -->
+    <header class="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
+        <div class="max-w-7xl mx-auto px-3 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-2">
+            <!-- 좌측 타이틀 & 홈 복귀 버튼 -->
+            <button onclick="goHome()" class="flex items-center gap-2.5 text-left group">
+                <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center text-2xl shadow-md group-hover:scale-105 transition">
+                    🚦
+                </div>
+                <div>
+                    <h1 class="font-jua text-lg sm:text-xl text-slate-900 leading-none">
+                        휘리릭~ 지나가는 사진을 잡아라!
+                    </h1>
+                    <p class="text-[11px] font-bold text-slate-500 mt-0.5">
+                        초등 3-2 사회 교과서 · 교통의 변화 (94~114쪽)
+                    </p>
+                </div>
+            </button>
+
+            <!-- 중앙 빠른 모드 전환 탭 (데스크톱) -->
+            <div class="hidden xl:flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200 gap-1">
+                <button onclick="startMode('past')" id="tab-past"
+                    class="px-2.5 py-1.5 rounded-xl font-jua text-sm transition text-slate-600 hover:bg-white">🏛️ 옛날 (9)</button>
+                <button onclick="startMode('present')" id="tab-present"
+                    class="px-2.5 py-1.5 rounded-xl font-jua text-sm transition text-slate-600 hover:bg-white">🚄 오늘날 (12)</button>
+                <button onclick="startMode('all')" id="tab-all"
+                    class="px-2.5 py-1.5 rounded-xl font-jua text-sm transition text-slate-600 hover:bg-white">🔀 전체 섞기 (21)</button>
+                <button onclick="startMode('bonus')" id="tab-bonus" title="나라마다 독특한 교통수단"
+                    class="px-2.5 py-1.5 rounded-xl font-jua text-sm transition text-slate-600 hover:bg-white">🌍 나라마다 독특한 (5)</button>
+            </div>
+
+            <!-- 우측 교실 도구 버튼 -->
+            <div class="flex items-center gap-1.5 sm:gap-2">
+                <button onclick="openPreviewAllModal()"
+                    class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-900 border border-sky-200 font-bold text-xs sm:text-sm transition flex items-center gap-1">
+                    <span>📋</span><span class="hidden sm:inline">전체 사진·정답</span>
+                </button>
+                <button onclick="openCompareModal()"
+                    class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs sm:text-sm transition flex items-center gap-1">
+                    <span>📊</span><span class="hidden sm:inline">비교표</span>
+                </button>
+                <button onclick="toggleScoreboardDrawer()"
+                    class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-bold text-xs sm:text-sm transition flex items-center gap-1">
+                    <span>🏆</span><span class="hidden sm:inline">점수판</span>
+                </button>
+                <button onclick="openEditorModal()"
+                    class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 font-bold text-xs sm:text-sm transition flex items-center gap-1">
+                    <span>✏️</span><span class="hidden sm:inline">문제 편집</span>
+                </button>
+                <button onclick="toggleMute()" id="btn-mute" title="효과음 켜기/끄기"
+                    class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-bold text-xs sm:text-sm transition">
+                    🔊
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- =========================================================
+         화면 1: 시작 화면 (4가지 모드 선택 + 26개 사진 점검 & 일괄 업로드)
+         ========================================================= -->
+    <main id="start-screen" class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-5 py-5 sm:py-7">
+        <!-- 인트로 배너 -->
+        <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-5 sm:p-7 mb-6 shadow-xl relative overflow-hidden">
+            <div class="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div>
+                    <span class="inline-block px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/40 text-xs font-bold mb-2">
+                        📖 초등학교 3학년 2학기 사회 · 2단원 교통의 변화로 달라진 생활 모습
+                    </span>
+                    <h2 class="font-jua text-2xl sm:text-4xl tracking-tight mb-2">
+                        순식간에 지나가는 실제 교통수단 사진을 맞혀라!
+                    </h2>
+                    <p class="text-slate-300 text-sm sm:text-base max-w-2xl leading-relaxed">
+                        속도(1~4단계)·궤적·반복 재생·정지 사진 엿보기·4단계 힌트를 선생님이 직접 조절할 수 있어요.
+                        아래 4가지 수업 모드 중 하나를 골라 바로 시작해 보세요!
+                    </p>
+                </div>
+                <div class="flex flex-wrap gap-2 shrink-0">
+                    <button onclick="openPreviewAllModal()" id="btn-start-preview-all"
+                        class="px-4 py-2.5 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-jua text-base shadow-lg transition flex items-center gap-1.5">
+                        <span>📋</span><span>수업 전 전체 사진·정답 보기 (26)</span>
+                    </button>
+                    <button onclick="openCompareModal()"
+                        class="px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 font-jua text-base transition">
+                        📊 옛날 vs 오늘날 비교표 보기
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4가지 플레이 모드 카드 -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-7">
+            <!-- 모드 1: 옛날의 교통수단 (9문제) -->
+            <button onclick="startMode('past')"
+                class="group text-left bg-gradient-to-b from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 border-4 border-amber-300 hover:border-amber-500 rounded-3xl p-5 shadow-md hover:shadow-xl transition-all transform hover:-translate-y-1 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between mb-2.5">
+                        <span class="text-4xl">🏛️</span>
+                        <span id="badge-count-past" class="bg-amber-600 text-white font-jua text-xs sm:text-sm px-3 py-1 rounded-full shadow">9문제</span>
+                    </div>
+                    <h3 class="font-jua text-2xl text-amber-950 mb-1">옛날의 교통수단</h3>
+                    <p class="text-[11px] font-bold text-amber-700 mb-2">📖 교과서 97~99쪽</p>
+                    <p class="text-xs sm:text-sm text-amber-900/80 font-medium leading-relaxed mb-3">
+                        사람·동물·바람의 힘을 이용한 전통 탈것과 수증기·석유 초기 기계 탈것!
+                    </p>
+                    <div class="flex flex-wrap gap-1 mb-4">
+                        <span class="text-[11px] font-bold bg-white/90 text-amber-900 px-1.5 py-0.5 rounded border border-amber-200">말</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-amber-900 px-1.5 py-0.5 rounded border border-amber-200">달구지</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-amber-900 px-1.5 py-0.5 rounded border border-amber-200">뗏목</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-amber-900 px-1.5 py-0.5 rounded border border-amber-200">가마</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-amber-900 px-1.5 py-0.5 rounded border border-amber-200">돛단배</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-amber-900 px-1.5 py-0.5 rounded border border-amber-200">나룻배</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-amber-900 px-1.5 py-0.5 rounded border border-amber-200">증기기차</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-amber-900 px-1.5 py-0.5 rounded border border-amber-200">증기선</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-amber-900 px-1.5 py-0.5 rounded border border-amber-200">프로펠러기</span>
+                    </div>
+                </div>
+                <div class="w-full py-2.5 rounded-2xl bg-amber-600 group-hover:bg-amber-700 text-white font-jua text-lg text-center shadow">
+                    옛날 교통수단 시작 ▶
+                </div>
+            </button>
+
+            <!-- 모드 2: 오늘날의 교통수단 (12문제) -->
+            <button onclick="startMode('present')"
+                class="group text-left bg-gradient-to-b from-sky-50 to-blue-50 hover:from-sky-100 hover:to-blue-100 border-4 border-sky-300 hover:border-sky-500 rounded-3xl p-5 shadow-md hover:shadow-xl transition-all transform hover:-translate-y-1 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between mb-2.5">
+                        <span class="text-4xl">🚄</span>
+                        <span id="badge-count-present" class="bg-blue-600 text-white font-jua text-xs sm:text-sm px-3 py-1 rounded-full shadow">12문제</span>
+                    </div>
+                    <h3 class="font-jua text-2xl text-blue-950 mb-1">오늘날의 교통수단</h3>
+                    <p class="text-[11px] font-bold text-blue-700 mb-2">📖 교과서 95~96, 100~102, 112쪽</p>
+                    <p class="text-xs sm:text-sm text-blue-900/80 font-medium leading-relaxed mb-3">
+                        더 빠르고 편리하며 친환경적으로 발달한 오늘날의 육지·바다·하늘 교통수단!
+                    </p>
+                    <div class="flex flex-wrap gap-1 mb-4">
+                        <span class="text-[11px] font-bold bg-white/90 text-blue-900 px-1.5 py-0.5 rounded border border-sky-200">자동차</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-blue-900 px-1.5 py-0.5 rounded border border-sky-200">고속열차</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-blue-900 px-1.5 py-0.5 rounded border border-sky-200">지하철</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-blue-900 px-1.5 py-0.5 rounded border border-sky-200">트럭</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-blue-900 px-1.5 py-0.5 rounded border border-sky-200">여객선</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-blue-900 px-1.5 py-0.5 rounded border border-sky-200">구조헬기</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-blue-900 px-1.5 py-0.5 rounded border border-sky-200">케이블카</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-blue-900 px-1.5 py-0.5 rounded border border-sky-200">자전거</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-blue-900 px-1.5 py-0.5 rounded border border-sky-200">비행기</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-blue-900 px-1.5 py-0.5 rounded border border-sky-200">화물선</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-blue-900 px-1.5 py-0.5 rounded border border-sky-200">잠수함</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-blue-900 px-1.5 py-0.5 rounded border border-sky-200">전기차</span>
+                    </div>
+                </div>
+                <div class="w-full py-2.5 rounded-2xl bg-blue-600 group-hover:bg-blue-700 text-white font-jua text-lg text-center shadow">
+                    오늘날 교통수단 시작 ▶
+                </div>
+            </button>
+
+            <!-- 모드 3: 옛날 + 오늘날 전체 섞기 (21문제) -->
+            <button onclick="startMode('all')"
+                class="group text-left bg-gradient-to-b from-teal-50 to-emerald-50 hover:from-teal-100 hover:to-emerald-100 border-4 border-teal-300 hover:border-teal-500 rounded-3xl p-5 shadow-md hover:shadow-xl transition-all transform hover:-translate-y-1 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between mb-2.5">
+                        <span class="text-4xl">🔀</span>
+                        <span id="badge-count-all" class="bg-teal-600 text-white font-jua text-xs sm:text-sm px-3 py-1 rounded-full shadow">21문제 섞기</span>
+                    </div>
+                    <h3 class="font-jua text-2xl text-teal-950 mb-1">옛날+오늘날 섞기</h3>
+                    <p class="text-[11px] font-bold text-teal-700 mb-2">📖 단원 정리·복습 추천!</p>
+                    <p class="text-xs sm:text-sm text-teal-900/80 font-medium leading-relaxed mb-3">
+                        옛날과 오늘날의 교통수단 21문제를 무작위로 섞어 출제합니다. 어떤 시대인지도 함께 맞혀 보세요!
+                    </p>
+                    <div class="bg-white/80 rounded-2xl p-2.5 border border-teal-200 text-xs font-bold text-teal-900 mb-4 space-y-1">
+                        <div>✅ 매번 새로운 순서로 랜덤 출제</div>
+                        <div>✅ 옛날(9) + 오늘날(12) 종합 대결</div>
+                        <div>✅ 모둠 점수판으로 흥미진진한 복습</div>
+                    </div>
+                </div>
+                <div class="w-full py-2.5 rounded-2xl bg-teal-600 group-hover:bg-teal-700 text-white font-jua text-lg text-center shadow">
+                    전체 섞기 시작 ▶
+                </div>
+            </button>
+
+            <!-- 모드 4: 나라마다 독특한 교통수단 (5문제) -->
+            <button onclick="startMode('bonus')"
+                class="group text-left bg-gradient-to-b from-purple-50 to-fuchsia-50 hover:from-purple-100 hover:to-fuchsia-100 border-4 border-purple-300 hover:border-purple-500 rounded-3xl p-5 shadow-md hover:shadow-xl transition-all transform hover:-translate-y-1 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between mb-2.5">
+                        <span class="text-4xl">🌍</span>
+                        <span id="badge-count-bonus" class="bg-purple-600 text-white font-jua text-xs sm:text-sm px-3 py-1 rounded-full shadow">5문제</span>
+                    </div>
+                    <h3 class="font-jua text-2xl text-purple-950 mb-1">나라마다 독특한 교통수단</h3>
+                    <p class="text-[11px] font-bold text-purple-700 mb-2">📖 교과서 102, 104, 114쪽</p>
+                    <p class="text-xs sm:text-sm text-purple-900/80 font-medium leading-relaxed mb-3">
+                        독일·타이·이탈리아의 독특한 교통수단과 크루즈선·미래 우주선까지 특별 라운드!
+                    </p>
+                    <div class="flex flex-wrap gap-1 mb-4">
+                        <span class="text-[11px] font-bold bg-white/90 text-purple-900 px-1.5 py-0.5 rounded border border-purple-200">슈베베반</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-purple-900 px-1.5 py-0.5 rounded border border-purple-200">툭툭</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-purple-900 px-1.5 py-0.5 rounded border border-purple-200">곤돌라</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-purple-900 px-1.5 py-0.5 rounded border border-purple-200">크루즈선</span>
+                        <span class="text-[11px] font-bold bg-white/90 text-purple-900 px-1.5 py-0.5 rounded border border-purple-200">우주선</span>
+                    </div>
+                </div>
+                <div class="w-full py-2.5 rounded-2xl bg-purple-600 group-hover:bg-purple-700 text-white font-jua text-lg text-center shadow">
+                    독특한 교통수단 시작 ▶
+                </div>
+            </button>
+        </div>
+
+        <!-- 하단: 실제 사진 자동 불러오기 진행 바 + 전체 26개 사진 미리보기 & 점검 섹션 -->
+        <div id="start-photo-section" class="bg-white rounded-3xl border-2 border-slate-200 shadow-lg p-4 sm:p-6 transition">
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+                <div class="flex items-center gap-2.5">
+                    <span id="preload-status-icon" class="text-2xl">⏳</span>
+                    <div>
+                        <h3 id="preload-status-title" class="font-jua text-xl sm:text-2xl text-slate-900 leading-tight">
+                            실제 사진 자동 불러오기 진행 중... (0 / 26)
+                        </h3>
+                        <p class="text-xs text-slate-500 font-medium">
+                            <strong>내 사진(뗏목·나룻배·달구지·돛단배 등)을 한 번에 선택하거나 원하는 카드 위에 바로 끌어다 놓으면</strong> 즉시 적용되어 영구 저장됩니다!
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <label class="cursor-pointer px-3.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow flex items-center gap-1.5 transition">
+                        <span>📂 내 사진 한 번에 넣기 (파일명 자동 매칭)</span>
+                        <input type="file" accept="image/*" multiple class="hidden" onchange="handleBatchFileUpload(this.files); this.value='';">
+                    </label>
+                    <button onclick="setStartAuditFilter('all')" id="audit-filter-all" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 text-white">전체 (26)</button>
+                    <button onclick="setStartAuditFilter('past')" id="audit-filter-past" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-100 text-amber-900">🏛️ 옛날</button>
+                    <button onclick="setStartAuditFilter('present')" id="audit-filter-present" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-sky-100 text-blue-900">🚄 오늘날</button>
+                    <button onclick="setStartAuditFilter('bonus')" id="audit-filter-bonus" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-100 text-purple-900">🌍 나라마다 독특한</button>
+                    <button onclick="reloadAllPhotos()" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300">
+                        🔄 전체 다시 불러오기
+                    </button>
+                </div>
+            </div>
+
+            <!-- 진행률 바 -->
+            <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden mb-4 border border-slate-200">
+                <div id="preload-progress-bar" class="h-full bg-gradient-to-r from-indigo-500 via-sky-500 to-emerald-500 transition-all duration-300" style="width: 0%;"></div>
+            </div>
+
+            <!-- 26개 사진 썸네일 미리보기 그리드 -->
+            <div id="start-photo-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3"></div>
+        </div>
+    </main>
+
+    <!-- =========================================================
+         화면 2: 퀴즈 플레이 화면 (대형 무대 + 수업 컨트롤 패널)
+         ========================================================= -->
+    <main id="quiz-screen" class="hidden flex-1 max-w-7xl w-full mx-auto px-3 sm:px-5 py-3 sm:py-4 flex flex-col">
+        <!-- 상단 빠른 모드 전환(모바일/태블릿) + 문제 진행 상태 바 -->
+        <div class="w-full flex flex-wrap items-center justify-between gap-2 mb-2.5">
+            <div class="flex xl:hidden items-center gap-1">
+                <button onclick="startMode('past')" class="px-2 py-1 rounded-lg text-xs font-jua bg-amber-100 text-amber-900 border border-amber-300">🏛️ 옛날</button>
+                <button onclick="startMode('present')" class="px-2 py-1 rounded-lg text-xs font-jua bg-sky-100 text-blue-900 border border-sky-300">🚄 오늘날</button>
+                <button onclick="startMode('all')" class="px-2 py-1 rounded-lg text-xs font-jua bg-teal-100 text-teal-900 border border-teal-300">🔀 전체</button>
+                <button onclick="startMode('bonus')" class="px-2 py-1 rounded-lg text-xs font-jua bg-purple-100 text-purple-900 border border-purple-300">🌍 독특한</button>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <span id="quiz-mode-pill" class="px-3 py-1 rounded-full font-jua text-sm bg-amber-100 text-amber-900 border border-amber-300">
+                    🏛️ 옛날의 교통수단
+                </span>
+                <span id="quiz-counter" class="font-jua text-lg sm:text-xl text-slate-800">
+                    1 / 9
+                </span>
+                <span id="quiz-page-badge" class="hidden sm:inline-block px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-700">
+                    📖 97쪽
+                </span>
+            </div>
+
+            <!-- 현재 문제 사진 즉시 교체 / 내 사진 올리기 도구 -->
+            <div class="flex items-center gap-1.5 flex-wrap">
+                <button onclick="cycleCurrentQuestionPhoto()" title="이 문제의 다른 실제 사진 불러오기"
+                    class="px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold shadow-sm transition">
+                    🔄 다른 사진
+                </button>
+                <label title="이 문제에 내 컴퓨터 사진 넣기 (또는 Ctrl+V)"
+                    class="cursor-pointer px-2.5 py-1.5 rounded-xl bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold shadow-sm transition">
+                    📁 사진 넣기
+                    <input type="file" accept="image/*" class="hidden" onchange="handleCurrentQuestionFileUpload(event)">
+                </label>
+                <button onclick="prevQuestion()" class="px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-300 text-xs font-bold text-slate-700 shadow-sm">
+                    ◀ 이전
+                </button>
+                <button onclick="nextQuestion()" class="px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-300 text-xs font-bold text-slate-700 shadow-sm">
+                    다음 ▶
+                </button>
+            </div>
+        </div>
+
+        <!-- 중앙 칠판 무대 영역 -->
+        <section id="stage-board" class="stage-board w-full rounded-3xl flex flex-col items-center justify-center relative mb-3">
+            <!-- 무대 상단 중앙 안내 배너 -->
+            <div class="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none w-max max-w-[92%]">
+                <div class="bg-black/45 backdrop-blur-md border border-white/20 text-white px-4 py-1.5 rounded-full shadow-lg flex items-center gap-2">
+                    <span id="banner-icon">👀</span>
+                    <span id="banner-text" class="font-jua text-base sm:text-xl tracking-wide">옛날의 어떤 교통수단일까요?</span>
+                </div>
+            </div>
+
+            <!-- 우측 상단 재생 횟수 & 현재 속도 배지 -->
+            <div class="absolute top-3 right-3 z-10 flex items-center gap-1.5 pointer-events-none">
+                <span id="stage-speed-badge" class="px-2.5 py-1 rounded-full bg-black/45 text-amber-300 border border-white/15 text-xs font-bold">
+                    ⚡ 2단계 (0.85초)
+                </span>
+                <span id="stage-play-count" class="px-2.5 py-1 rounded-full bg-black/45 text-sky-300 border border-white/15 text-xs font-bold">
+                    재생 0회
+                </span>
+            </div>
+
+            <!-- 1) 대기 상태 중앙 안내 -->
+            <div id="stage-idle-overlay" class="z-10 text-center px-5 py-6 flex flex-col items-center">
+                <div id="stage-photo-status-pill" class="mb-3 px-3.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-xs font-bold">
+                    ✅ 실제 사진 준비 완료!
+                </div>
+                <p class="font-jua text-2xl sm:text-4xl text-white drop-shadow mb-2">
+                    눈을 크게 뜨고 칠판을 보세요!
+                </p>
+                <p class="text-white/75 text-xs sm:text-sm mb-5">
+                    아래 <strong>[🚀 휙~ 출발! (Space)]</strong> 또는 숫자키 <strong>1~4</strong>를 누르면 실제 사진이 지나갑니다.
+                </p>
+                <button onclick="launchPhoto()"
+                    class="btn-3d px-8 py-4 rounded-2xl bg-gradient-to-b from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-jua text-2xl sm:text-3xl shadow-2xl border-b-4 border-orange-700 flex items-center gap-2">
+                    <span>🚀</span><span>휙~ 사진 출발!</span>
+                </button>
+            </div>
+
+            <!-- 2) 지나가는 실제 사진 폴라로이드 카드 (Web Animations API 제어) -->
+            <div id="fly-card" class="fly-card hidden">
+                <div class="fly-card-photo-wrap">
+                    <img id="fly-photo" src="" alt="지나가는 교통수단 실제 사진" referrerpolicy="no-referrer">
+                </div>
+                <div class="pt-1.5 flex items-center justify-between px-1.5 text-[11px] font-bold text-slate-400">
+                    <span>📸 3-2 사회 교과서</span>
+                    <span>무엇일까요?</span>
+                </div>
+            </div>
+
+            <!-- 3) 하단 점진적 힌트 카드 영역 (최대 4단계 누적 표시) -->
+            <div id="hint-stack" class="hidden absolute bottom-3 left-1/2 -translate-x-1/2 z-25 w-[94%] max-w-3xl flex flex-wrap justify-center gap-2 pointer-events-none"></div>
+
+            <!-- 4) 1.5초 정지 사진 엿보기 오버레이 (대형 + 잘림 없음) -->
+            <div id="peek-overlay" class="hidden absolute inset-0 z-30 w-full h-full flex items-center justify-center p-3 sm:p-5 bg-black/75 backdrop-blur-sm">
+                <div class="animate-pop bg-white rounded-3xl shadow-2xl border-4 border-sky-400 p-3.5 w-full max-w-3xl">
+                    <div class="flex items-center justify-between mb-2 px-1">
+                        <span class="font-jua text-lg sm:text-xl text-sky-900">🖼️ 1.5초 정지 사진 엿보기!</span>
+                        <span class="text-xs sm:text-sm font-bold text-sky-600">눈에 꼭 담아두세요 👀</span>
+                    </div>
+                    <div class="w-full h-[46vh] min-h-[300px] max-h-[480px] bg-slate-900 rounded-2xl overflow-hidden flex items-center justify-center p-1.5">
+                        <img id="peek-photo" src="" alt="엿보기 사진" referrerpolicy="no-referrer" class="w-full h-full object-contain block">
+                    </div>
+                    <div class="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden mt-2.5">
+                        <div id="peek-bar" class="h-full bg-sky-500 rounded-full"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5) 정답 공개 오버레이 (실제 사진 대폭 확대 + 교과서 정리 카드 + 1~6모둠 즉시 +1점) -->
+            <div id="answer-overlay" class="hidden absolute inset-0 z-40 w-full h-full flex items-center justify-center p-2.5 sm:p-4 bg-black/75 backdrop-blur-sm">
+                <div class="animate-pop bg-white rounded-3xl shadow-2xl border-4 border-amber-400 w-full max-w-5xl max-h-full overflow-y-auto grid grid-cols-1 md:grid-cols-12">
+                    <!-- 좌측 초대형 실제 사진 (가로/세로 온전히 표시) -->
+                    <div class="relative md:col-span-7 p-3 sm:p-4 bg-slate-900 flex flex-col items-center justify-center min-h-[260px] sm:min-h-[420px]">
+                        <img id="answer-photo" src="" alt="정답 실제 사진" referrerpolicy="no-referrer"
+                            class="w-full h-72 sm:h-[430px] object-contain rounded-xl block">
+                        <div id="answer-photo-fallback" class="hidden text-center text-white/90 p-4">
+                            <p class="text-3xl mb-1">📷</p>
+                            <p class="text-xs font-bold mb-2">사진을 올리거나 Ctrl+V로 붙여넣으세요</p>
+                            <label class="cursor-pointer px-3 py-1.5 rounded-lg bg-amber-400 text-slate-900 font-bold text-xs">
+                                📁 사진 올리기
+                                <input type="file" accept="image/*" class="hidden" onchange="handleCurrentQuestionFileUpload(event)">
+                            </label>
+                        </div>
+                        <!-- 정답 화면에서 바로 내 사진으로 교체할 수 있는 버튼 -->
+                        <label title="클릭해서 내 컴퓨터 사진(예: 나룻배_3.jpg)으로 즉시 교체하거나 이 위에 끌어다 놓으세요"
+                            class="cursor-pointer absolute bottom-3 right-3 px-3 py-1.5 rounded-xl bg-black/70 hover:bg-indigo-600 text-white border border-white/25 text-xs font-bold shadow-lg backdrop-blur-sm transition flex items-center gap-1.5">
+                            <span>📁 내 사진으로 교체 (드래그 · Ctrl+V)</span>
+                            <input type="file" accept="image/*" class="hidden" onchange="handleCurrentQuestionFileUpload(event)">
+                        </label>
+                    </div>
+
+                    <!-- 우측 교과서 정리 카드 + 모둠 점수 즉시 부여 -->
+                    <div class="md:col-span-5 p-4 sm:p-5 flex flex-col justify-between bg-gradient-to-b from-white to-slate-50 gap-3">
+                        <div>
+                            <div class="flex items-center flex-wrap gap-1.5 mb-2">
+                                <span id="ans-era-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                    옛날·전통
+                                </span>
+                                <span id="ans-page-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-700">
+                                    📖 97쪽
+                                </span>
+                            </div>
+
+                            <h2 id="ans-title" class="font-jua text-3xl sm:text-4xl text-slate-900 mb-3">
+                                달구지 (소달구지)
+                            </h2>
+
+                            <div class="space-y-2 mb-3">
+                                <div class="bg-sky-50 border border-sky-200 rounded-xl px-3 py-2 text-xs sm:text-sm">
+                                    <span class="font-bold text-sky-800">🛣️ 교통로: </span>
+                                    <span id="ans-route" class="font-bold text-slate-800"></span>
+                                </div>
+                                <div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-xs sm:text-sm">
+                                    <span class="font-bold text-emerald-800">⚡ 움직이는 힘: </span>
+                                    <span id="ans-power" class="font-bold text-slate-800"></span>
+                                </div>
+                            </div>
+
+                            <div class="bg-amber-50/80 border border-amber-200 rounded-2xl p-3 text-sm text-slate-800 font-medium leading-relaxed">
+                                <span class="text-xs font-bold text-amber-800 block mb-1">📘 교과서 설명</span>
+                                <p id="ans-desc"></p>
+                            </div>
+                        </div>
+
+                        <!-- 정답 맞힌 모둠 즉시 +1점 주기 -->
+                        <div class="border-t border-slate-200 pt-3">
+                            <p class="text-xs font-bold text-slate-500 mb-1.5">🏆 정답을 맞힌 모둠에 바로 +1점 주기:</p>
+                            <div id="answer-quick-score-btns" class="grid grid-cols-3 gap-1.5 mb-3"></div>
+
+                            <div class="flex items-center gap-2">
+                                <button onclick="closeAnswerOverlay()"
+                                    class="px-3.5 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-jua text-base transition">
+                                    다시 보기
+                                </button>
+                                <button onclick="nextQuestion()"
+                                    class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-jua text-lg shadow-md transition">
+                                    다음 문제 ▶ (Enter)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 하단 교사용 수업 컨트롤 패널 -->
+        <section class="bg-white rounded-3xl border-2 border-slate-200 shadow-md p-3.5 sm:p-4 space-y-3">
+            <!-- 1줄: 메인 액션 버튼 (출발/반복 · 엿보기 · 힌트 · 정답 공개) -->
+            <div class="grid grid-cols-2 lg:grid-cols-12 gap-2">
+                <button onclick="launchPhoto()"
+                    class="btn-3d lg:col-span-4 py-3 px-4 rounded-2xl bg-gradient-to-b from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-jua text-xl shadow border-b-4 border-orange-700 flex items-center justify-center gap-2">
+                    <span>🚀</span><span>한 번 더! (Space)</span>
+                </button>
+                <button onclick="peekStaticPhoto()"
+                    class="btn-3d lg:col-span-2 py-3 px-3 rounded-2xl bg-gradient-to-b from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-jua text-lg shadow border-b-4 border-blue-800 flex items-center justify-center gap-1.5">
+                    <span>🖼️</span><span>1.5초 엿보기</span>
+                </button>
+                <button onclick="showNextHint()" id="btn-hint"
+                    class="btn-3d lg:col-span-3 py-3 px-3 rounded-2xl bg-gradient-to-b from-violet-500 to-purple-600 hover:from-violet-400 hover:to-purple-500 text-white font-jua text-lg shadow border-b-4 border-purple-800 flex items-center justify-center gap-1.5">
+                    <span>💡</span><span id="btn-hint-label">힌트 보기 (0/4)</span>
+                </button>
+                <button onclick="revealAnswer()"
+                    class="btn-3d lg:col-span-3 py-3 px-4 rounded-2xl bg-gradient-to-b from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white font-jua text-xl shadow border-b-4 border-green-800 flex items-center justify-center gap-1.5">
+                    <span>🎉</span><span>정답 공개 (Enter)</span>
+                </button>
+            </div>
+
+            <!-- 2줄: 속도(1~4단계 + 미세 슬라이더) · 궤적 선택 · 모션 블러 -->
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                <!-- 속도 4단계 버튼 -->
+                <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="text-xs font-extrabold text-slate-500 mr-1">⚡ 속도:</span>
+                    <button onclick="setSpeedPreset(1, true)" id="spd-1" class="px-2.5 py-1.5 rounded-xl text-xs font-bold border transition bg-slate-100 text-slate-700 border-slate-300">1단계 초고속 (0.45초)</button>
+                    <button onclick="setSpeedPreset(2, true)" id="spd-2" class="px-2.5 py-1.5 rounded-xl text-xs font-bold border transition bg-indigo-600 text-white border-indigo-700 shadow">2단계 빠름 (0.85초)</button>
+                    <button onclick="setSpeedPreset(3, true)" id="spd-3" class="px-2.5 py-1.5 rounded-xl text-xs font-bold border transition bg-slate-100 text-slate-700 border-slate-300">3단계 보통 (1.4초)</button>
+                    <button onclick="setSpeedPreset(4, true)" id="spd-4" class="px-2.5 py-1.5 rounded-xl text-xs font-bold border transition bg-slate-100 text-slate-700 border-slate-300">4단계 천천히 (2.3초)</button>
+                </div>
+
+                <!-- 미세조절 슬라이더 + 궤적 + 블러 -->
+                <div class="flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+                        <span class="text-xs font-bold text-slate-600">미세조절:</span>
+                        <input id="speed-slider" type="range" min="300" max="3000" step="50" value="850"
+                            oninput="onSpeedSliderChange(this.value)"
+                            class="w-24 sm:w-28 accent-indigo-600 cursor-pointer">
+                        <span id="speed-slider-label" class="text-xs font-extrabold text-indigo-700 w-10 text-right">0.85초</span>
+                    </div>
+
+                    <div class="flex items-center gap-1.5">
+                        <label for="trajectory-select" class="text-xs font-bold text-slate-600">🧭 궤적:</label>
+                        <select id="trajectory-select" onchange="currentTrajectory = this.value"
+                            class="px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800">
+                            <option value="random">🎲 랜덤 궤적</option>
+                            <option value="lr">➡️ 가로 (좌→우)</option>
+                            <option value="rl">⬅️ 가로 (우→좌)</option>
+                            <option value="diag">↗️ 대각선 횡단</option>
+                            <option value="arc">🌈 포물선 점프</option>
+                            <option value="zoom">💥 중앙 줌인 깜빡임</option>
+                        </select>
+                    </div>
+
+                    <label class="flex items-center gap-1.5 cursor-pointer bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700">
+                        <input id="motion-blur-toggle" type="checkbox" checked class="accent-indigo-600 w-4 h-4">
+                        <span>💨 모션 블러</span>
+                    </label>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- =========================================================
+         오른쪽 슬라이드 모둠 점수판 드로어 (1~6모둠)
+         ========================================================= -->
+    <aside id="scoreboard-drawer"
+        class="fixed top-0 right-0 h-full w-80 max-w-[90vw] bg-white shadow-2xl border-l-2 border-slate-200 z-50 transform translate-x-full transition-transform duration-300 flex flex-col">
+        <div class="p-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white flex items-center justify-between">
+            <h3 class="font-jua text-2xl">🏆 모둠 점수판</h3>
+            <button onclick="toggleScoreboardDrawer()" class="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 font-bold">✕</button>
+        </div>
+        <div id="scoreboard-list" class="flex-1 overflow-y-auto p-4 space-y-2.5"></div>
+        <div class="p-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
+            <button onclick="resetAllScores()" class="w-full py-2 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold text-xs transition">
+                🔄 모든 모둠 점수 0점으로 초기화
+            </button>
+        </div>
+    </aside>
+
+    <!-- =========================================================
+         모달 1: 📊 옛날 vs 오늘날 교통 비교표 (내용 가리기 퀴즈 지원)
+         ========================================================= -->
+    <div id="compare-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
+        <div class="animate-pop bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden border-4 border-emerald-400">
+            <div class="p-4 sm:p-5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white flex items-center justify-between">
+                <div>
+                    <h3 class="font-jua text-2xl sm:text-3xl">📊 옛날 vs 오늘날 교통 변화 비교표</h3>
+                    <p class="text-xs sm:text-sm text-emerald-100">초등 3-2 사회 교과서(97~107쪽) 핵심 정리 · 칸을 눌러 가리고 퀴즈로 활용해 보세요!</p>
+                </div>
+                <button onclick="closeCompareModal()" class="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 font-bold text-lg">✕</button>
+            </div>
+            <div class="p-4 sm:p-5 overflow-y-auto space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <span class="text-xs font-bold text-slate-500">💡 각 항목 칸을 클릭하면 가리거나 다시 보여줄 수 있어요!</span>
+                    <div class="flex gap-2">
+                        <button onclick="toggleAllCompareCells(true)" class="px-3 py-1.5 rounded-xl bg-slate-800 text-white text-xs font-bold">🙈 모두 가리기 (퀴즈용)</button>
+                        <button onclick="toggleAllCompareCells(false)" class="px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold">👀 모두 보이기</button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto rounded-2xl border border-slate-200">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead>
+                            <tr class="bg-slate-100 text-slate-800 font-jua text-base">
+                                <th class="p-3 border-b border-r border-slate-200 w-1/5">비교 기준</th>
+                                <th class="p-3 border-b border-r border-slate-200 w-2/5 bg-amber-50 text-amber-950">🏛️ 옛날의 교통</th>
+                                <th class="p-3 border-b border-slate-200 w-2/5 bg-sky-50 text-blue-950">🚄 오늘날의 교통</th>
+                            </tr>
+                        </thead>
+                        <tbody id="compare-table-body" class="divide-y divide-slate-200"></tbody>
+                    </table>
+                </div>
+
+                <!-- 교과서 107쪽 박 선비 vs 수이 여행 비교 -->
+                <div class="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-4">
+                    <h4 class="font-jua text-lg text-indigo-950 mb-2">🗺️ 교과서 107쪽: 부산 → 서울(한양) 여행 비교</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm">
+                        <div class="bg-white rounded-xl p-3 border border-amber-200">
+                            <p class="font-jua text-base text-amber-900 mb-1">🚶 박 선비 (옛날)</p>
+                            <p class="text-slate-700">도보·말·나룻배 이용 · <strong>약 15일</strong> 소요 (9월 1일 출발 → 9월 15일 도착)</p>
+                        </div>
+                        <div class="bg-white rounded-xl p-3 border border-sky-200">
+                            <p class="font-jua text-base text-blue-900 mb-1">🚄 수이 (오늘날)</p>
+                            <p class="text-slate-700">지하철·고속 열차·택시 이용 · <strong>약 2시간 30분</strong> 소요 (하루 만에 도착 & 관광!)</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =========================================================
+         모달 2: ✏️ 교사용 문제 편집기 & 실시간 Commons 사진 검색기
+         ========================================================= -->
+    <div id="editor-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-5">
+        <div class="animate-pop bg-white rounded-3xl shadow-2xl max-w-6xl w-full max-h-[92vh] flex flex-col overflow-hidden border-4 border-indigo-400">
+            <div class="p-4 bg-gradient-to-r from-indigo-600 to-blue-600 text-white flex items-center justify-between">
+                <div>
+                    <h3 class="font-jua text-2xl">✏️ 교사용 문제 편집 & 실제 사진 검색기</h3>
+                    <p class="text-xs text-indigo-100">문제를 추가·수정·삭제하거나 내장 사진 검색기 / 파일 업로드로 원하는 실제 사진을 저장하세요.</p>
+                </div>
+                <button onclick="closeEditorModal()" class="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 font-bold text-lg">✕</button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-slate-200">
+                <!-- 좌측: 문제 추가/수정 폼 + 내장 사진 검색기 -->
+                <div class="lg:col-span-5 p-4 space-y-3 bg-slate-50/70">
+                    <div class="flex items-center justify-between">
+                        <h4 id="editor-form-title" class="font-jua text-xl text-indigo-950">➕ 새 문제 추가하기</h4>
+                        <button onclick="resetEditorForm()" class="text-xs font-bold text-slate-500 hover:text-slate-800 underline">입력 초기화</button>
+                    </div>
+                    <input type="hidden" id="form-id" value="">
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">분류(모드) *</label>
+                            <select id="form-category" class="w-full px-3 py-1.5 rounded-xl border border-slate-300 bg-white font-bold text-sm">
+                                <option value="past">🏛️ 옛날의 교통수단</option>
+                                <option value="present">🚄 오늘날의 교통수단</option>
+                                <option value="bonus">🌍 나라마다 독특한 교통수단</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">교과서 쪽수</label>
+                            <input id="form-page" type="text" placeholder="예: 97쪽" class="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-sm">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">정답 이름 *</label>
+                            <input id="form-title" type="text" placeholder="예: 소달구지" class="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-sm font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">초성 힌트</label>
+                            <input id="form-choseong" type="text" placeholder="예: ㅅㄷㄱㅈ" class="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-sm">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">교통로</label>
+                            <input id="form-route" type="text" placeholder="예: 도로 / 수로 / 철도" class="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">움직이는 힘</label>
+                            <input id="form-power" type="text" placeholder="예: 동물의 힘 / 전기" class="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-sm">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">교과서 설명</label>
+                        <textarea id="form-desc" rows="2" placeholder="초등학생 눈높이에 맞는 설명을 입력하세요." class="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-sm"></textarea>
+                    </div>
+
+                    <!-- 사진 선택/업로드/검색 영역 -->
+                    <div class="bg-white rounded-2xl border border-slate-200 p-3 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-700">📸 문제 실제 사진</span>
+                            <label class="cursor-pointer px-2.5 py-1 rounded-lg bg-indigo-100 hover:bg-indigo-200 text-indigo-800 text-xs font-bold">
+                                📁 내 컴퓨터 사진 올리기
+                                <input type="file" accept="image/*" class="hidden" onchange="handleEditorFileUpload(event)">
+                            </label>
+                        </div>
+
+                        <div class="w-full h-36 bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center p-1">
+                            <img id="form-photo-preview" src="" alt="미리보기" referrerpolicy="no-referrer" class="hidden w-full h-full object-contain">
+                            <span id="form-photo-empty" class="text-xs text-slate-400">아래에서 사진을 검색하거나 파일을 올려주세요</span>
+                        </div>
+                        <input id="form-custom-photo" type="hidden" value="">
+
+                        <!-- Wikimedia Commons 실시간 사진 검색 -->
+                        <div class="flex gap-1.5">
+                            <input id="commons-search-input" type="text" placeholder="영문/한글 키워드 검색 (예: Korean ox cart)"
+                                onkeydown="if(event.key==='Enter'){event.preventDefault();searchCommonsInEditor();}"
+                                class="flex-1 px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs">
+                            <button onclick="searchCommonsInEditor()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold">
+                                🔍 검색
+                            </button>
+                        </div>
+                        <div id="commons-search-results" class="grid grid-cols-4 gap-1.5 max-h-32 overflow-y-auto"></div>
+                    </div>
+
+                    <button onclick="saveEditorQuestion()" class="w-full py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-jua text-lg shadow">
+                        💾 문제 저장하기
+                    </button>
+                </div>
+
+                <!-- 우측: 전체 문제 목록 -->
+                <div class="lg:col-span-7 p-4 flex flex-col">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <div class="flex items-center gap-1 flex-wrap">
+                            <button onclick="setEditorListFilter('all')" id="ed-f-all" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-800 text-white">전체</button>
+                            <button onclick="setEditorListFilter('past')" id="ed-f-past" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-100 text-amber-900">🏛️ 옛날</button>
+                            <button onclick="setEditorListFilter('present')" id="ed-f-present" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-sky-100 text-blue-900">🚄 오늘날</button>
+                            <button onclick="setEditorListFilter('bonus')" id="ed-f-bonus" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-100 text-purple-900">🌍 독특한</button>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <button id="btn-reset-defaults" onclick="handleResetDefaultsClick()"
+                                class="px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200">
+                                ♻️ 교과서 기본값으로 복원
+                            </button>
+                        </div>
+                    </div>
+                    <div id="editor-question-list" class="space-y-2 overflow-y-auto max-h-[60vh] pr-1"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =========================================================
+         모달 3: 📋 교사용 수업 전 전체 사진·정답 미리보기 모달
+         ========================================================= -->
+    <div id="preview-all-modal" class="hidden fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-5">
+        <div class="animate-pop bg-white rounded-3xl shadow-2xl max-w-6xl w-full max-h-[92vh] flex flex-col overflow-hidden border-4 border-sky-400">
+            <!-- 헤더 -->
+            <div class="p-4 sm:p-5 bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600 text-white flex items-center justify-between gap-3">
+                <div>
+                    <h3 class="font-jua text-2xl sm:text-3xl">📋 수업 전 전체 사진 · 정답 미리보기</h3>
+                    <p class="text-xs sm:text-sm text-sky-100">
+                        수업 시작 전 전체 문제의 실제 사진과 정답·교과서 설명을 확인하고, 마음에 들지 않는 사진은 바로 바꿀 수 있어요.
+                    </p>
+                </div>
+                <button onclick="closePreviewAllModal()" class="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 font-bold text-lg shrink-0">✕</button>
+            </div>
+
+            <!-- 상단 필터 및 보기 옵션 툴바 -->
+            <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    <button onclick="setPreviewAllFilter('all')" id="prev-f-all" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 text-white shadow">전체 (26)</button>
+                    <button onclick="setPreviewAllFilter('past')" id="prev-f-past" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-100 text-amber-900">🏛️ 옛날의 교통수단</button>
+                    <button onclick="setPreviewAllFilter('present')" id="prev-f-present" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-sky-100 text-blue-900">🚄 오늘날의 교통수단</button>
+                    <button onclick="setPreviewAllFilter('bonus')" id="prev-f-bonus" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-100 text-purple-900">🌍 나라마다 독특한</button>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <button onclick="togglePreviewHideAnswers()" id="btn-toggle-preview-answers"
+                        class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 shadow-sm transition">
+                        🙈 정답 가려보기
+                    </button>
+                    <span class="text-[11px] font-bold text-slate-500 hidden md:inline">💡 사진을 클릭하면 화면 가득 크게 볼 수 있어요</span>
+                </div>
+            </div>
+
+            <!-- 전체 사진·정답 카드 리스트 -->
+            <div id="preview-all-list" class="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-100/70"></div>
+        </div>
+    </div>
+
+    <!-- =========================================================
+         모달 4: 🔍 사진 크게 보기 (미리보기 확대용 라이트박스)
+         ========================================================= -->
+    <div id="photo-zoom-modal" onclick="if(event.target===this) closePhotoZoom()"
+        class="hidden fixed inset-0 z-[60] bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
+        <div class="animate-pop bg-white rounded-3xl shadow-2xl max-w-4xl w-full overflow-hidden border-4 border-amber-400">
+            <div class="px-4 py-3 bg-slate-900 text-white flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2 min-w-0">
+                    <span id="zoom-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-slate-950 shrink-0">옛날</span>
+                    <h4 id="zoom-title" class="font-jua text-xl sm:text-2xl truncate">나룻배</h4>
+                </div>
+                <button onclick="closePhotoZoom()" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/30 font-bold shrink-0">✕</button>
+            </div>
+            <div class="w-full h-[58vh] min-h-[300px] bg-slate-950 flex items-center justify-center p-2">
+                <img id="zoom-photo" src="" alt="확대 사진" referrerpolicy="no-referrer" class="w-full h-full object-contain block">
+            </div>
+            <div class="p-4 bg-white flex flex-wrap items-center justify-between gap-2">
+                <p id="zoom-desc" class="text-sm text-slate-700 font-medium flex-1"></p>
+                <button onclick="closePhotoZoom()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-jua text-base">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 하단 토스트 알림 (alert() 절대 미사용) -->
+    <div id="toast-box"
+        class="fixed bottom-5 left-1/2 -translate-x-1/2 z-[100] pointer-events-none opacity-0 transition-opacity duration-300">
+        <div id="toast-msg" class="px-5 py-2.5 rounded-2xl bg-slate-900/95 text-white font-bold text-sm shadow-2xl border border-white/15">
+            알림
+        </div>
+    </div>
+
+    <script>
+        /* =====================================================================
+         * 1. 초등 3-2 사회 교과서 (94~114쪽) 완벽 반영 26문제 데이터
+         * ===================================================================== */
+        const LEGACY_STORAGE_KEYS = ['hwiririk_social32_textbook_v5', 'hwiririk_social32_textbook_v4', 'hwiririk_social32_textbook_v3', 'hwiririk_social32_textbook_v2', 'hwiririk_social32_textbook_v1'];
+        const STORAGE_KEY = 'hwiririk_social32_textbook_v6';
+        const SCORE_STORAGE_KEY = 'hwiririk_social32_scores_v1';
+
+        const TEXTBOOK_QUESTIONS = [
+            // === 모드 1: 🏛️ 옛날의 교통수단 (9문제, 교과서 97~99쪽) ===
+            {
+                id: 'q1', category: 'past', eraLabel: '옛날·전통', page: '97쪽',
+                title: '말', route: '자연스럽게 생긴 길(흙길)', power: '동물의 힘', choseong: 'ㅁ',
+                description: '먼 거리를 이동하거나 빨리 갈 때는 말을 타고 다녔습니다.',
+                ko: '말 (동물)', en: 'Horse', commons: 'Horse galloping field', preferKo: false,
+                preferredCommonsFiles: [], matchAliases: ['말'], customPhoto: ''
+            },
+            {
+                id: 'q2', category: 'past', eraLabel: '옛날·전통', page: '97쪽',
+                title: '달구지 (소달구지)', route: '자연스럽게 생긴 길(흙길)', power: '동물의 힘(소·말)', choseong: 'ㄷㄱㅈ',
+                description: '소나 말이 끄는 수레를 이용하여 무거운 짐을 옮겼습니다.',
+                ko: '달구지', en: 'Oxcart', commons: 'Korean Ox Cart 1956 oxcart', preferKo: true,
+                preferredCommonsFiles: ['File:Korean_Ox_Cart_1956.jpg'], matchAliases: ['달구지', '소달구지', '우마차'], customPhoto: ''
+            },
+            {
+                id: 'q3', category: 'past', eraLabel: '옛날·전통', page: '97쪽',
+                title: '뗏목', route: '강(물길)', power: '사람과 물의 힘', choseong: 'ㄸㅁ',
+                description: '통나무 여러 개를 이어 붙여 만든 뗏목을 타고 사람이 직접 긴 막대기로 밀어 강을 건너거나 물건을 옮겼습니다.',
+                ko: '뗏목', en: 'Raft', commons: 'Korean traditional wooden raft Yeongwol river', preferKo: false,
+                preferredCommonsFiles: [
+                    'File:KOCIS_Traditional_rafting_in_Hanbando-myeon_(4617494071).jpg',
+                    'File:KOCIS_Hanbando-myeon,_Yeongwol-gun,_Gangwon_Province_(4618108384).jpg',
+                    'File:2026_Yeongwol_Photowalk_Shulla_38.jpg'
+                ],
+                matchAliases: ['뗏목', '똇목', '때목', '동강뗏목', '영월뗏목'], customPhoto: ''
+            },
+            {
+                id: 'q4', category: 'past', eraLabel: '옛날·전통', page: '98쪽',
+                title: '가마', route: '자연스럽게 생긴 길(흙길)', power: '사람의 힘(가마꾼)', choseong: 'ㄱㅁ',
+                description: '가마에 사람을 태우고 가마꾼이 가마를 들어 옮겼습니다.',
+                ko: '가마 (탈것)', en: 'Litter (vehicle)', commons: 'Korean palanquin sedan chair', preferKo: true,
+                preferredCommonsFiles: ['File:Pilgrimage_of_Korea(n)_lady.jpg', 'File:Gama2_crop.jpg'],
+                matchAliases: ['가마', '꽃가마'], customPhoto: ''
+            },
+            {
+                id: 'q5', category: 'past', eraLabel: '옛날·전통', page: '98쪽',
+                title: '돛단배', route: '강·바다(물길)', power: '자연(바람)의 힘', choseong: 'ㄷㄷㅂ',
+                description: '배에 바람의 힘을 이용하는 돛을 달고 강이나 바다를 건넜습니다.',
+                ko: '범선', en: 'Junk (ship)', commons: 'Traditional wooden sailboat junk sail', preferKo: false,
+                preferredCommonsFiles: ['File:First_known_photo_of_Koreans_1871.jpg', 'File:Korean_boatman_(4095401181).jpg'],
+                matchAliases: ['돛단배', '황포돛배', '돛배', '범선'], customPhoto: ''
+            },
+            {
+                id: 'q6', category: 'past', eraLabel: '옛날·전통', page: '98쪽',
+                title: '나룻배', route: '강·호수·좁은 수로(나루터)', power: '사람의 힘(노 젓기)', choseong: 'ㄴㄹㅂ',
+                description: '강이나 호수, 좁은 수로에서 사람과 짐을 싣고 사람이 노를 저어 양쪽 기슭(나루터)을 오갔습니다.',
+                ko: '나룻배', en: '', commons: 'traditional wooden rowboat ferry river boatman', preferKo: true,
+                preferredCommonsFiles: [
+                    'File:Yagiri_no_watashi.jpg',
+                    'File:Yagiri_no_watashi_2020-01-19.jpg',
+                    'File:YagiriNoWatashi_Katsushika_Tokyo_JAN2016.jpg',
+                    'File:Danwon-Narut.bae.jpg'
+                ],
+                matchAliases: ['나룻배', '나루배', '나룻터', '뱃사공'], customPhoto: ''
+            },
+            {
+                id: 'q7', category: 'past', eraLabel: '옛날·기계의 힘 시작', page: '99쪽',
+                title: '증기 기차', route: '철도', power: '수증기의 힘', choseong: 'ㅈㄱ ㄱㅊ',
+                description: '과학 기술이 발달하면서 물을 끓이면 생기는 수증기의 힘으로 움직이는 기차를 만들었습니다.',
+                ko: '증기 기관차', en: 'Steam locomotive', commons: 'Steam locomotive train', preferKo: false,
+                preferredCommonsFiles: [], matchAliases: ['증기기차', '증기기관차'], customPhoto: ''
+            },
+            {
+                id: 'q8', category: 'past', eraLabel: '옛날·기계의 힘 시작', page: '99쪽',
+                title: '증기선', route: '수로(강·바다)', power: '수증기의 힘', choseong: 'ㅈㄱㅅ',
+                description: '물을 끓이면 생기는 수증기의 힘으로 움직이는 배를 만들어 이전보다 더 빠르고 편하게 이동했습니다.',
+                ko: '증기선', en: 'Steamboat', commons: 'Paddle steamboat river', preferKo: false,
+                preferredCommonsFiles: [], matchAliases: ['증기선'], customPhoto: ''
+            },
+            {
+                id: 'q9', category: 'past', eraLabel: '옛날·기계의 힘 시작', page: '99쪽',
+                title: '프로펠러 비행기', route: '항공로(하늘)', power: '석유·기계의 힘', choseong: 'ㅍㄹㅍㄹ ㅂㅎㄱ',
+                description: '석유의 힘으로 움직이는 프로펠러 비행기를 만들어 하늘을 날 수 있게 되었습니다.',
+                ko: '프로펠러기', en: 'Biplane', commons: 'Vintage propeller airplane', preferKo: false,
+                preferredCommonsFiles: [], matchAliases: ['프로펠러', '프로펠러비행기'], customPhoto: ''
+            },
+
+            // === 모드 2: 🚄 오늘날의 교통수단 (12문제, 교과서 95~96, 100~102, 106, 112쪽) ===
+            {
+                id: 'q10', category: 'present', eraLabel: '오늘날', page: '95, 100쪽',
+                title: '자동차', route: '도로', power: '석유·가스·전기', choseong: 'ㅈㄷㅊ',
+                description: '도로를 따라 사람이 이동하거나 물건을 옮길 때 가장 널리 이용하는 교통수단입니다.',
+                ko: '자동차', en: 'Car', commons: 'Passenger car road Korea', preferKo: false,
+                preferredCommonsFiles: [], matchAliases: ['자동차', '승용차'], customPhoto: ''
+            },
+            {
+                id: 'q11', category: 'present', eraLabel: '오늘날', page: '95, 107쪽',
+                title: '기차 (고속 열차)', route: '철도', power: '전기·기계의 힘', choseong: 'ㄱㅊ',
+                description: '철도를 따라 먼 곳까지 더 빠르고 편하게 이동할 수 있습니다. (부산에서 서울까지 약 2시간 30분!)',
+                ko: 'KTX', en: 'KTX-Sancheon', commons: 'KTX high speed train Korea', preferKo: true,
+                preferredCommonsFiles: [], matchAliases: ['기차', '고속열차', 'ktx'], customPhoto: ''
+            },
+            {
+                id: 'q12', category: 'present', eraLabel: '오늘날', page: '96, 101쪽',
+                title: '지하철', route: '지하 철도', power: '전기의 힘', choseong: 'ㅈㅎㅊ',
+                description: '땅속 철도를 이용해 다른 장소로 이동할 때 약속 시간에 늦지 않게 갈 수 있습니다.',
+                ko: '지하철', en: 'Seoul Metropolitan Subway', commons: 'Seoul Metro subway train', preferKo: true,
+                preferredCommonsFiles: [], matchAliases: ['지하철', '전철'], customPhoto: ''
+            },
+            {
+                id: 'q13', category: 'present', eraLabel: '오늘날', page: '96, 100쪽',
+                title: '트럭 (화물차)', route: '도로', power: '석유·기계의 힘', choseong: 'ㅌㄹ',
+                description: '지게차로 실은 많은 짐을 한 번에 싣고 먼 곳까지 옮길 때 이용합니다.',
+                ko: '트럭', en: 'Truck', commons: 'Cargo truck highway', preferKo: false,
+                preferredCommonsFiles: [], matchAliases: ['트럭', '화물차', '지게차'], customPhoto: ''
+            },
+            {
+                id: 'q14', category: 'present', eraLabel: '오늘날', page: '96, 102쪽',
+                title: '여객선', route: '수로(강·바다)', power: '석유·기계의 힘', choseong: 'ㅇㄱㅅ',
+                description: '강이나 바다에서 많은 사람을 태우고 섬이나 다른 지역으로 이동할 때 이용합니다.',
+                ko: '여객선', en: 'High-speed craft', commons: 'Fast passenger ferry catamaran ship sea', preferKo: false,
+                preferredCommonsFiles: [
+                    'File:SeaCat_One_powered_catamaran_passenger_ferry_at_Sozopol,_Bulgaria.jpg',
+                    'File:Highspeed_catamaran_ferry.jpg',
+                    'File:The_catamaran_passenger_ferry_Worldchampion_Jet_(Seajets)_on_February_9,_2020.jpg'
+                ],
+                matchAliases: ['여객선', '쾌속선', '배'], customPhoto: ''
+            },
+            {
+                id: 'q15', category: 'present', eraLabel: '오늘날', page: '96, 102쪽',
+                title: '구조 헬기', route: '하늘(항공로)', power: '석유·기계의 힘', choseong: 'ㄱㅈ ㅎㄱ',
+                description: '위험에 빠진 사람을 빠르게 구하거나 하늘로 이동할 때 이용합니다.',
+                ko: '소방 헬리콥터', en: 'Helicopter', commons: 'Rescue helicopter 119', preferKo: true,
+                preferredCommonsFiles: [], matchAliases: ['구조헬기', '헬기', '헬리콥터'], customPhoto: ''
+            },
+            {
+                id: 'q16', category: 'present', eraLabel: '오늘날', page: '96쪽',
+                title: '케이블카', route: '공중 케이블', power: '전기의 힘', choseong: 'ㅋㅇㅂㅋ',
+                description: '산처럼 높은 곳으로 이동하거나 경치를 구경할 때 이용합니다.',
+                ko: '삭도', en: 'Aerial lift', commons: 'Mountain cable car gondola lift', preferKo: false,
+                preferredCommonsFiles: [], matchAliases: ['케이블카'], customPhoto: ''
+            },
+            {
+                id: 'q17', category: 'present', eraLabel: '오늘날', page: '96, 112쪽',
+                title: '자전거', route: '자전거 전용 도로', power: '사람의 힘(전기 모터 보조)', choseong: 'ㅈㅈㄱ',
+                description: '가까운 거리를 이동하거나 운동할 때 이용하며, 공유 자전거는 환경 오염을 줄여 줍니다.',
+                ko: '자전거', en: 'Bicycle', commons: 'Bicycle riding park', preferKo: false,
+                preferredCommonsFiles: [], matchAliases: ['자전거'], customPhoto: ''
+            },
+            {
+                id: 'q18', category: 'present', eraLabel: '오늘날', page: '95, 102쪽',
+                title: '비행기', route: '항공로(하늘)', power: '석유(항공유)', choseong: 'ㅂㅎㄱ',
+                description: '하늘의 항공로를 따라 다른 나라로 여행을 가거나 먼 곳까지 빠르게 이동합니다.',
+                ko: '여객기', en: 'Airliner', commons: 'Commercial passenger airplane sky', preferKo: false,
+                preferredCommonsFiles: [], matchAliases: ['비행기', '여객기'], customPhoto: ''
+            },
+            {
+                id: 'q19', category: 'present', eraLabel: '오늘날', page: '102쪽',
+                title: '화물선', route: '수로(바다)', power: '석유·기계의 힘', choseong: 'ㅎㅁㅅ',
+                description: '바다를 건너 다른 나라로 아주 많은 물건(컨테이너)을 실어 보냅니다.',
+                ko: '컨테이너선', en: 'Container ship', commons: 'Container cargo ship sea', preferKo: false,
+                preferredCommonsFiles: [], matchAliases: ['화물선', '컨테이너선'], customPhoto: ''
+            },
+            {
+                id: 'q20', category: 'present', eraLabel: '오늘날', page: '102쪽',
+                title: '잠수함', route: '바닷속(수로)', power: '전기·기계의 힘', choseong: 'ㅈㅅㅎ',
+                description: '물 위가 아니라 깊은 물속으로 다니는 교통수단입니다.',
+                ko: '잠수함', en: 'Submarine', commons: 'Submarine ocean water', preferKo: false,
+                preferredCommonsFiles: [], matchAliases: ['잠수함'], customPhoto: ''
+            },
+            {
+                id: 'q21', category: 'present', eraLabel: '오늘날·친환경', page: '112쪽',
+                title: '전기차', route: '도로', power: '친환경 에너지(전기)', choseong: 'ㅈㄱㅊ',
+                description: '친환경 에너지인 전기를 사용하여 환경 오염을 줄이는 자동차입니다.',
+                ko: '전기 자동차', en: 'Electric car', commons: 'Electric car charging station', preferKo: false,
+                preferredCommonsFiles: [], matchAliases: ['전기차', '전기자동차'], customPhoto: ''
+            },
+
+            // === 모드 4: 🌍 나라마다 독특한 교통수단 (5문제, 교과서 102, 104, 114쪽) ===
+            {
+                id: 'q22', category: 'bonus', eraLabel: '나라마다 독특한 교통수단', page: '104쪽',
+                title: '슈베베반 (독일)', route: '공중 철도', power: '전기의 힘', choseong: 'ㅅㅂㅂㅂ',
+                description: '철도를 만들 땅이 부족하여 공중에 매달려 다니는 독일의 전동차입니다.',
+                ko: '부퍼탈 슈베베반', en: 'Wuppertal Schwebebahn', commons: 'Wuppertal Schwebebahn', preferKo: false,
+                preferredCommonsFiles: [], matchAliases: ['슈베베반'], customPhoto: ''
+            },
+            {
+                id: 'q23', category: 'bonus', eraLabel: '나라마다 독특한 교통수단', page: '104쪽',
+                title: '툭툭 (타이)', route: '도로', power: '석유·전기', choseong: 'ㅌㅌ',
+                description: '오토바이로 만든 세 발 택시로, 짧은 거리를 이동할 때 주로 이용합니다.',
+                ko: '삼륜 자동차', en: 'Auto rickshaw', commons: 'Tuk-tuk Thailand', preferKo: false,
+                preferredCommonsFiles: [], matchAliases: ['툭툭'], customPhoto: ''
+            },
+            {
+                id: 'q24', category: 'bonus', eraLabel: '나라마다 독특한 교통수단', page: '104쪽',
+                title: '곤돌라 (이탈리아)', route: '운하(물길)', power: '사람의 힘(노 젓기)', choseong: 'ㄱㄷㄹ',
+                description: '물 위에 만들어진 도시 베네치아에서 물길을 따라 이동하는 배입니다.',
+                ko: '곤돌라', en: 'Gondola', commons: 'Venice gondola canal', preferKo: false,
+                preferredCommonsFiles: [], matchAliases: ['곤돌라'], customPhoto: ''
+            },
+            {
+                id: 'q25', category: 'bonus', eraLabel: '오늘날·여가', page: '102쪽',
+                title: '크루즈선', route: '수로(바다)', power: '석유·기계의 힘', choseong: 'ㅋㄹㅈㅅ',
+                description: '바다를 여행하며 숙박과 여가를 즐길 수 있는 큰 여객선입니다.',
+                ko: '유람선', en: 'Cruise ship', commons: 'Cruise ship ocean', preferKo: false,
+                preferredCommonsFiles: [], matchAliases: ['크루즈선', '크루즈'], customPhoto: ''
+            },
+            {
+                id: 'q26', category: 'bonus', eraLabel: '미래의 교통수단', page: '114쪽',
+                title: '우주선', route: '우주', power: '로켓 추진', choseong: 'ㅇㅈㅅ',
+                description: '미래에 우주여행을 하거나 물건을 운반할 수 있는 교통수단입니다.',
+                ko: '우주선', en: 'Spacecraft', commons: 'Spacecraft rocket launch', preferKo: false,
+                preferredCommonsFiles: [], matchAliases: ['우주선'], customPhoto: ''
+            }
+        ];
+
+        // 교과서 비교표 데이터
+        const COMPARE_ROWS = [
+            {
+                label: '만든 재료',
+                past: '나무, 풀의 줄기 등 자연에서 쉽게 얻을 수 있는 재료',
+                present: '철, 알루미늄, 플라스틱 등 단단하고 가벼운 인공 재료'
+            },
+            {
+                label: '움직이는 힘',
+                past: '사람의 힘, 동물의 힘(말·소), 자연의 힘(바람·물)',
+                present: '기계의 힘 (석유, 가스, 전기 등 친환경 에너지)'
+            },
+            {
+                label: '교통로·시설',
+                past: '자연스럽게 생긴 흙길, 강(물길)',
+                present: '아스팔트 도로, 철도, 다리, 터널, 공항, 항구, 터미널, 역'
+            },
+            {
+                label: '이동 속도와 거리',
+                past: '느리고 한 번에 먼 곳까지 가기 어려움',
+                present: '아주 빠르고 가기 어려웠던 먼 곳·다른 나라까지 쉽게 이동'
+            },
+            {
+                label: '실어 나르는 짐',
+                past: '한 번에 적은 양의 짐만 옮길 수 있음',
+                present: '트럭·화물선 등으로 많은 짐을 한꺼번에 멀리 운반'
+            },
+            {
+                label: '관련 직업 변화',
+                past: '가마꾼, 뱃사공 등 (오늘날 거의 사라짐)',
+                present: '기관사, 조종사, 항공관제사, 도선사, 자동차 정비사, 택배 기사 등'
+            }
+        ];
+
+        /* =====================================================================
+         * 2. 전역 상태 변수
+         * ===================================================================== */
+        let allQuestions = [];
+        let activeQuestions = [];
+        let currentMode = 'past';
+        let currentIndex = 0;
+
+        // 사진 저장소: { [id]: { status: 'loading'|'ready'|'failed', url: string, candidates: string[], candIdx: number } }
+        const photoStore = {};
+        let pipelineRunning = false;
+
+        // 수업 플레이 상태
+        let currentDurationMs = 850;
+        let currentSpeedLevel = 2;
+        let currentTrajectory = 'random';
+        let currentHintLevel = 0;
+        let currentPlayCount = 0;
+        let isAnswerRevealed = false;
+        let currentFlyAnim = null;
+        let peekTimeout = null;
+
+        // 필터 및 UI 상태
+        let startAuditFilter = 'all';
+        let editorListFilter = 'all';
+        let previewAllFilter = 'all';
+        let previewHideAnswers = false;
+        let isMuted = false;
+        let resetConfirmPending = false;
+        let toastTimer = null;
+
+        // 모둠 점수판 (1~6모둠)
+        let groupScores = [
+            { name: '1모둠', score: 0 },
+            { name: '2모둠', score: 0 },
+            { name: '3모둠', score: 0 },
+            { name: '4모둠', score: 0 },
+            { name: '5모둠', score: 0 },
+            { name: '6모둠', score: 0 }
+        ];
+
+        /* =====================================================================
+         * 3. 효과음 엔진 (Tone.js 기반, 외부 오디오 URL 미사용)
+         * ===================================================================== */
+        let synth = null;
+
+        function ensureAudio() {
+            if (isMuted) return false;
+            try {
+                if (typeof Tone === 'undefined') return false;
+                if (Tone.context.state !== 'running') {
+                    Tone.start();
+                }
+                if (!synth) {
+                    synth = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: 'triangle' },
+                        envelope: { attack: 0.01, decay: 0.15, sustain: 0.1, release: 0.3 }
+                    }).toDestination();
+                    synth.volume.value = -8;
+                }
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function playWhooshSound() {
+            if (!ensureAudio()) return;
+            try {
+                const now = Tone.now();
+                const s = new Tone.Synth({
+                    oscillator: { type: 'sine' },
+                    envelope: { attack: 0.02, decay: 0.25, sustain: 0, release: 0.1 }
+                }).toDestination();
+                s.volume.value = -10;
+                s.triggerAttackRelease('C4', '8n', now);
+                s.frequency.exponentialRampToValueAtTime(780, now + 0.22);
+                setTimeout(() => { try { s.dispose(); } catch (e) {} }, 500);
+            } catch (e) {}
+        }
+
+        function playHintSound() {
+            if (!ensureAudio()) return;
+            try {
+                const now = Tone.now();
+                synth.triggerAttackRelease('E5', '16n', now);
+                synth.triggerAttackRelease('G5', '16n', now + 0.08);
+            } catch (e) {}
+        }
+
+        function playFanfareSound() {
+            if (!ensureAudio()) return;
+            try {
+                const now = Tone.now();
+                synth.triggerAttackRelease(['C5', 'E5', 'G5'], '8n', now);
+                synth.triggerAttackRelease(['D5', 'F5', 'A5'], '8n', now + 0.13);
+                synth.triggerAttackRelease(['E5', 'G5', 'C6'], '4n', now + 0.26);
+            } catch (e) {}
+        }
+
+        function playScoreSound() {
+            if (!ensureAudio()) return;
+            try {
+                const now = Tone.now();
+                synth.triggerAttackRelease('G5', '16n', now);
+                synth.triggerAttackRelease('C6', '8n', now + 0.09);
+            } catch (e) {}
+        }
+
+        function toggleMute() {
+            isMuted = !isMuted;
+            document.getElementById('btn-mute').textContent = isMuted ? '🔇' : '🔊';
+            showToast(isMuted ? '🔇 효과음을 껐습니다.' : '🔊 효과음을 켰습니다.');
+        }
+
+        /* =====================================================================
+         * 4. 3단계 실제 사진 자동 로딩 엔진 (referrerPolicy="no-referrer" + 실로드 검증)
+         * ===================================================================== */
+        function isCleanPhotoUrl(url, title, mime) {
+            if (!url) return false;
+            const lowUrl = url.toLowerCase();
+            const lowTitle = (title || '').toLowerCase();
+            const lowMime = (mime || '').toLowerCase();
+
+            // SVG, 지도, 아이콘, 로고, 국기, PDF 제외
+            if (lowUrl.endsWith('.svg') || lowUrl.includes('.svg/') || lowMime.includes('svg')) return false;
+            if (lowUrl.endsWith('.pdf') || lowUrl.endsWith('.ogg') || lowUrl.endsWith('.webm') || lowUrl.endsWith('.gif')) return false;
+            const badWords = ['logo', 'icon', 'flag_of', 'map_of', 'diagram', 'symbol', 'coat_of_arms', 'emblem', 'blank', 'locator'];
+            for (const w of badWords) {
+                if (lowTitle.includes(w) || lowUrl.includes(w)) return false;
+            }
+            return true;
+        }
+
+        function verifyImageLoad(url, timeoutMs) {
+            return new Promise((resolve) => {
+                if (!url) { resolve(false); return; }
+                const img = new Image();
+                img.referrerPolicy = 'no-referrer';
+                let settled = false;
+                const timer = setTimeout(() => {
+                    if (!settled) { settled = true; resolve(false); }
+                }, timeoutMs || 6500);
+
+                img.onload = () => {
+                    if (!settled) {
+                        settled = true;
+                        clearTimeout(timer);
+                        resolve(img.naturalWidth > 0 && img.naturalHeight > 0);
+                    }
+                };
+                img.onerror = () => {
+                    if (!settled) {
+                        settled = true;
+                        clearTimeout(timer);
+                        resolve(false);
+                    }
+                };
+                img.src = url;
+            });
+        }
+
+        function initPhotoStoreEntry(q) {
+            if (!photoStore[q.id]) {
+                photoStore[q.id] = { status: 'loading', url: '', candidates: [], candIdx: 0 };
+            }
+            if (q.customPhoto) {
+                photoStore[q.id].status = 'ready';
+                photoStore[q.id].url = q.customPhoto;
+                if (!photoStore[q.id].candidates.includes(q.customPhoto)) {
+                    photoStore[q.id].candidates.unshift(q.customPhoto);
+                }
+                photoStore[q.id].candIdx = 0;
+            }
+        }
+
+        function addCandidates(qid, urls) {
+            const st = photoStore[qid];
+            if (!st) return;
+            for (const u of urls) {
+                if (u && !st.candidates.includes(u)) {
+                    st.candidates.push(u);
+                }
+            }
+        }
+
+        /**
+         * 0.5단계: 지정된 Wikimedia Commons 고품질 파일명 일괄 배치 조회 (1200px)
+         */
+        async function fetchCommonsFilesBatch(fileNames) {
+            const map = new Map();
+            const unique = Array.from(new Set(fileNames.filter(Boolean)));
+            if (unique.length === 0) return map;
+
+            for (let i = 0; i < unique.length; i += 40) {
+                const slice = unique.slice(i, i + 40);
+                const url = `https://commons.wikimedia.org/w/api.php?action=query&redirects=1&prop=imageinfo&iiprop=url|mime|size&iiurlwidth=1200&format=json&origin=*&titles=${encodeURIComponent(slice.join('|'))}`;
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    if (!data || !data.query) continue;
+
+                    const normMap = new Map();
+                    (data.query.normalized || []).forEach(n => normMap.set(n.from, n.to));
+
+                    const redirMap = new Map();
+                    (data.query.redirects || []).forEach(r => redirMap.set(r.from, r.to));
+
+                    const pageByTitle = new Map();
+                    Object.values(data.query.pages || {}).forEach(p => {
+                        if (p && p.title) pageByTitle.set(p.title, p);
+                    });
+
+                    for (const raw of slice) {
+                        let cur = normMap.get(raw) || normMap.get(raw.replace(/_/g, ' ')) || raw.replace(/_/g, ' ');
+                        const seen = new Set();
+                        while (redirMap.has(cur) && !seen.has(cur)) {
+                            seen.add(cur);
+                            cur = redirMap.get(cur);
+                        }
+                        const page = pageByTitle.get(cur) || pageByTitle.get(raw);
+                        const info = page && page.imageinfo && page.imageinfo[0];
+                        if (!info) continue;
+                        const photoUrl = info.thumburl || info.url;
+                        if (photoUrl && isCleanPhotoUrl(photoUrl, page.title || '', info.mime || '')) {
+                            map.set(raw, photoUrl);
+                        }
+                    }
+                } catch (e) {}
+            }
+            return map;
+        }
+
+        /**
+         * 1단계: 위키백과 배치 API (ko 1회, en 1회, 1200px)
+         */
+        async function fetchWikipediaBatch(lang, titles) {
+            const map = new Map();
+            const unique = Array.from(new Set(titles.filter(Boolean)));
+            if (unique.length === 0) return map;
+
+            for (let i = 0; i < unique.length; i += 50) {
+                const slice = unique.slice(i, i + 50);
+                const url = `https://${lang}.wikipedia.org/w/api.php?action=query&redirects=1&prop=pageimages&piprop=thumbnail&pithumbsize=1200&format=json&origin=*&titles=${encodeURIComponent(slice.join('|'))}`;
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    if (!data || !data.query) continue;
+
+                    const normMap = new Map();
+                    (data.query.normalized || []).forEach(n => normMap.set(n.from, n.to));
+
+                    const redirMap = new Map();
+                    (data.query.redirects || []).forEach(r => redirMap.set(r.from, r.to));
+
+                    const pageByTitle = new Map();
+                    Object.values(data.query.pages || {}).forEach(p => {
+                        if (p && p.title) pageByTitle.set(p.title, p);
+                    });
+
+                    for (const raw of slice) {
+                        let cur = normMap.get(raw) || raw;
+                        const seen = new Set();
+                        while (redirMap.has(cur) && !seen.has(cur)) {
+                            seen.add(cur);
+                            cur = redirMap.get(cur);
+                        }
+                        const page = pageByTitle.get(cur) || pageByTitle.get(raw);
+                        const thumb = page && page.thumbnail && page.thumbnail.source;
+                        if (thumb && isCleanPhotoUrl(thumb, page.title || '', '')) {
+                            map.set(raw, thumb);
+                        }
+                    }
+                } catch (e) {}
+            }
+            return map;
+        }
+
+        /**
+         * 2단계: Wikimedia Commons 검색 API (jpeg/png/webp, 1200px)
+         */
+        async function fetchCommonsPhotos(query, limit) {
+            if (!query) return [];
+            const lim = limit || 8;
+            const url = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(query)}&gsrlimit=${lim}&prop=imageinfo&iiprop=url|mime|size&iiurlwidth=1200&format=json&origin=*`;
+            try {
+                const res = await fetch(url);
+                if (!res.ok) return [];
+                const data = await res.json();
+                if (!data || !data.query || !data.query.pages) return [];
+                const results = [];
+                Object.values(data.query.pages).forEach(p => {
+                    const info = p.imageinfo && p.imageinfo[0];
+                    if (!info) return;
+                    const mime = (info.mime || '').toLowerCase();
+                    if (!mime.includes('jpeg') && !mime.includes('jpg') && !mime.includes('png') && !mime.includes('webp')) return;
+                    if (info.width && info.width < 320) return;
+                    const photoUrl = info.thumburl || info.url;
+                    if (photoUrl && isCleanPhotoUrl(photoUrl, p.title || '', mime)) {
+                        results.push(photoUrl);
+                    }
+                });
+                return results;
+            } catch (e) {
+                return [];
+            }
+        }
+
+        /**
+         * 3단계: Openverse 공개 사진 API 폴백
+         */
+        async function fetchOpenversePhotos(query, limit) {
+            if (!query) return [];
+            const lim = limit || 5;
+            const url = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&page_size=${lim}&format=json`;
+            try {
+                const res = await fetch(url);
+                if (!res.ok) return [];
+                const data = await res.json();
+                if (!data || !Array.isArray(data.results)) return [];
+                return data.results
+                    .map(r => r.url || r.thumbnail)
+                    .filter(u => u && isCleanPhotoUrl(u, '', ''));
+            } catch (e) {
+                return [];
+            }
+        }
+
+        async function resolveFirstValidCandidate(qid) {
+            const st = photoStore[qid];
+            if (!st) return false;
+            for (let i = st.candIdx; i < st.candidates.length; i++) {
+                const candidate = st.candidates[i];
+                if (candidate.startsWith('data:image/')) {
+                    st.url = candidate;
+                    st.candIdx = i;
+                    st.status = 'ready';
+                    return true;
+                }
+                const ok = await verifyImageLoad(candidate, 5500);
+                if (ok) {
+                    st.url = candidate;
+                    st.candIdx = i;
+                    st.status = 'ready';
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function delayMs(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        /**
+         * 전체 실제 사진 로딩 파이프라인 실행
+         */
+        async function runPhotoLoadingPipeline(forceReset) {
+            if (pipelineRunning) return;
+            pipelineRunning = true;
+
+            try {
+                allQuestions.forEach(q => {
+                    if (forceReset && !q.customPhoto) {
+                        photoStore[q.id] = { status: 'loading', url: '', candidates: [], candIdx: 0 };
+                    } else {
+                        initPhotoStoreEntry(q);
+                    }
+                });
+                updatePreloadProgressUI();
+                renderStartPhotoGrid();
+
+                const pendingList = allQuestions.filter(q => photoStore[q.id].status !== 'ready');
+
+                // === 0.5단계 & 1단계: 지정 Commons 우수 사진 + ko/en 위키백과 배치 동시 요청 ===
+                if (pendingList.length > 0) {
+                    const preferredFiles = [];
+                    pendingList.forEach(q => {
+                        if (Array.isArray(q.preferredCommonsFiles)) {
+                            preferredFiles.push(...q.preferredCommonsFiles);
+                        }
+                    });
+                    const koTitles = pendingList.map(q => q.ko || q.title);
+                    const enTitles = pendingList.map(q => q.en).filter(Boolean);
+
+                    const [prefMap, koMap, enMap] = await Promise.all([
+                        fetchCommonsFilesBatch(preferredFiles),
+                        fetchWikipediaBatch('ko', koTitles),
+                        fetchWikipediaBatch('en', enTitles)
+                    ]);
+
+                    for (const q of pendingList) {
+                        const prefUrls = (q.preferredCommonsFiles || []).map(fn => prefMap.get(fn)).filter(Boolean);
+                        const koUrl = koMap.get(q.ko || q.title);
+                        const enUrl = q.en ? enMap.get(q.en) : null;
+                        const wikiOrdered = q.preferKo ? [koUrl, enUrl] : [enUrl, koUrl];
+                        addCandidates(q.id, [...prefUrls, ...wikiOrdered.filter(Boolean)]);
+                    }
+
+                    // 1단계 후보 동시 검증 (4개씩 배치)
+                    for (let i = 0; i < pendingList.length; i += 4) {
+                        const chunk = pendingList.slice(i, i + 4);
+                        await Promise.all(chunk.map(async (q) => {
+                            await resolveFirstValidCandidate(q.id);
+                        }));
+                        updatePreloadProgressUI();
+                        renderStartPhotoGrid();
+                        refreshCurrentQuizPhotoIfVisible();
+                        refreshPreviewAllModalIfOpen();
+                    }
+                }
+
+                // === 2단계 & 3단계: 미완료 항목만 150ms 간격 순차 Commons → Openverse 폴백 ===
+                const stillPending = allQuestions.filter(q => photoStore[q.id].status !== 'ready');
+                for (const q of stillPending) {
+                    const query = q.commons || q.en || q.title;
+                    const commonsUrls = await fetchCommonsPhotos(query, 6);
+                    addCandidates(q.id, commonsUrls);
+                    let ok = await resolveFirstValidCandidate(q.id);
+
+                    if (!ok) {
+                        const openUrls = await fetchOpenversePhotos(query, 5);
+                        addCandidates(q.id, openUrls);
+                        ok = await resolveFirstValidCandidate(q.id);
+                    }
+                    if (!ok) {
+                        photoStore[q.id].status = 'failed';
+                    }
+                    updatePreloadProgressUI();
+                    renderStartPhotoGrid();
+                    refreshCurrentQuizPhotoIfVisible();
+                    refreshPreviewAllModalIfOpen();
+                    await delayMs(150);
+                }
+
+                updatePreloadProgressUI();
+                renderStartPhotoGrid();
+                refreshCurrentQuizPhotoIfVisible();
+                refreshPreviewAllModalIfOpen();
+            } finally {
+                pipelineRunning = false;
+            }
+        }
+
+        function reloadAllPhotos() {
+            showToast('🔄 모든 실제 사진을 다시 불러옵니다...');
+            runPhotoLoadingPipeline(true);
+        }
+
+        async function cyclePhotoForQuestion(qid) {
+            const q = allQuestions.find(item => item.id === qid);
+            if (!q) return;
+            initPhotoStoreEntry(q);
+            const st = photoStore[qid];
+
+            // 후보가 2개 미만이면 Commons에서 추가 사진 확보
+            if (st.candidates.length < 4) {
+                showToast(`🔍 '${q.title}' 다른 실제 사진 찾는 중...`);
+                const more = await fetchCommonsPhotos(q.commons || q.en || q.title, 8);
+                addCandidates(qid, more);
+            }
+
+            if (st.candidates.length <= 1) {
+                showToast(`다른 후보 사진이 부족합니다. [📁 올리기]나 Ctrl+V를 이용해 보세요!`);
+                return;
+            }
+
+            // 다음 후보로 순환 시도
+            const total = st.candidates.length;
+            for (let step = 1; step < total; step++) {
+                const nextIdx = (st.candIdx + step) % total;
+                const cand = st.candidates[nextIdx];
+                if (cand.startsWith('data:image/') || await verifyImageLoad(cand, 4500)) {
+                    st.candIdx = nextIdx;
+                    st.url = cand;
+                    st.status = 'ready';
+                    q.customPhoto = cand.startsWith('data:image/') ? cand : '';
+                    renderStartPhotoGrid();
+                    refreshCurrentQuizPhotoIfVisible();
+                    refreshPreviewAllModalIfOpen();
+                    showToast(`🔄 '${q.title}' 사진을 다른 실제 사진으로 바꿨습니다!`);
+                    return;
+                }
+            }
+            showToast('불러올 수 있는 다른 사진을 찾지 못했습니다.');
+        }
+
+        function handleImgRuntimeError(qid) {
+            const st = photoStore[qid];
+            if (!st) return;
+            if (st.candIdx + 1 < st.candidates.length) {
+                st.candIdx += 1;
+                st.url = st.candidates[st.candIdx];
+                renderStartPhotoGrid();
+                refreshCurrentQuizPhotoIfVisible();
+                refreshPreviewAllModalIfOpen();
+            }
+        }
+
+        function updatePreloadProgressUI() {
+            const total = allQuestions.length;
+            const ready = allQuestions.filter(q => photoStore[q.id] && photoStore[q.id].status === 'ready').length;
+            const failed = allQuestions.filter(q => photoStore[q.id] && photoStore[q.id].status === 'failed').length;
+            const pct = total > 0 ? Math.round(((ready + failed) / total) * 100) : 0;
+
+            const iconEl = document.getElementById('preload-status-icon');
+            const titleEl = document.getElementById('preload-status-title');
+            const barEl = document.getElementById('preload-progress-bar');
+
+            barEl.style.width = `${pct}%`;
+            if (ready + failed < total) {
+                iconEl.textContent = '⏳';
+                titleEl.textContent = `실제 사진 자동 불러오기 진행 중... (${ready} / ${total})`;
+            } else if (failed === 0) {
+                iconEl.textContent = '✅';
+                titleEl.textContent = `모든 실제 사진 준비 완료! (${ready} / ${total})`;
+            } else {
+                iconEl.textContent = '📸';
+                titleEl.textContent = `실제 사진 ${ready}개 완료 (${failed}개는 내 사진 올리기/Ctrl+V 가능)`;
+            }
+        }
+
+        /* =====================================================================
+         * 5. 이미지 압축 · 내 사진 파일명 자동 매칭 일괄 업로드 · Ctrl+V 붙여넣기
+         * ===================================================================== */
+        function compressImageBlob(fileOrBlob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const maxSide = 1200;
+                        let w = img.width;
+                        let h = img.height;
+                        if (w > maxSide || h > maxSide) {
+                            if (w >= h) { h = Math.round((h * maxSide) / w); w = maxSide; }
+                            else { w = Math.round((w * maxSide) / h); h = maxSide; }
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w;
+                        canvas.height = h;
+                        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                        resolve(canvas.toDataURL('image/jpeg', 0.85));
+                    };
+                    img.onerror = () => resolve(e.target.result);
+                    img.src = e.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(fileOrBlob);
+            });
+        }
+
+        function applyCustomPhoto(qid, dataUrl) {
+            const q = allQuestions.find(item => item.id === qid);
+            if (!q) return;
+            q.customPhoto = dataUrl;
+            initPhotoStoreEntry(q);
+            photoStore[qid].url = dataUrl;
+            photoStore[qid].status = 'ready';
+            photoStore[qid].candidates = [dataUrl, ...photoStore[qid].candidates.filter(u => u !== dataUrl)];
+            photoStore[qid].candIdx = 0;
+
+            saveQuestionsToStorage();
+            updatePreloadProgressUI();
+            renderStartPhotoGrid();
+            refreshCurrentQuizPhotoIfVisible();
+            refreshPreviewAllModalIfOpen();
+        }
+
+        /**
+         * 파일명으로 가장 적합한 문제 자동 매칭 (Windows/macOS 한글 NFC 정규화 + 오타 포함 지원)
+         */
+        function normalizeMatchKey(str) {
+            return String(str || '')
+                .normalize('NFC')
+                .replace(/\.[^.]+$/, '')
+                .replace(/[\s_\-()0-9]/g, '')
+                .toLowerCase();
+        }
+
+        function matchQuestionByFilename(fileName) {
+            const base = normalizeMatchKey(fileName);
+            if (!base) return null;
+
+            let best = null;
+            let bestLen = 0;
+            for (const q of allQuestions) {
+                const aliases = Array.isArray(q.matchAliases) ? q.matchAliases : [];
+                const cleanTitle = normalizeMatchKey(q.title || '');
+                const candidates = [...aliases.map(a => normalizeMatchKey(a)), cleanTitle];
+                for (const key of candidates) {
+                    if (!key) continue;
+                    if (base === key || base.includes(key) || (base.length >= 2 && key.includes(base))) {
+                        if (key.length > bestLen) {
+                            best = q;
+                            bestLen = key.length;
+                        }
+                    }
+                }
+            }
+            return best;
+        }
+
+        async function handleBatchFileUpload(fileList) {
+            const files = Array.from(fileList || []).filter(f => f.type && f.type.startsWith('image/'));
+            if (files.length === 0) {
+                showToast('이미지 파일을 선택해 주세요.');
+                return;
+            }
+
+            const matchedNames = [];
+            const unmatchedNames = [];
+
+            for (const file of files) {
+                const target = matchQuestionByFilename(file.name);
+                if (!target) {
+                    unmatchedNames.push(file.name);
+                    continue;
+                }
+                try {
+                    const dataUrl = await compressImageBlob(file);
+                    applyCustomPhoto(target.id, dataUrl);
+                    matchedNames.push(target.title);
+                } catch (e) {
+                    unmatchedNames.push(file.name);
+                }
+            }
+
+            if (matchedNames.length > 0 && unmatchedNames.length === 0) {
+                showToast(`✅ ${matchedNames.length}개 사진 자동 적용 완료! (${matchedNames.join(', ')})`);
+            } else if (matchedNames.length > 0) {
+                showToast(`✅ ${matchedNames.length}개 적용 완료 · 매칭 실패: ${unmatchedNames.join(', ')}`);
+            } else {
+                showToast(`⚠️ 파일명과 일치하는 문제를 찾지 못했습니다. 원하는 카드 위에 직접 끌어다 놓거나 [📁 올리기]를 이용해 주세요!`);
+            }
+        }
+
+        async function handleSingleCardFile(qid, file) {
+            if (!file || !file.type || !file.type.startsWith('image/')) {
+                showToast('이미지 파일만 올릴 수 있습니다.');
+                return;
+            }
+            try {
+                const dataUrl = await compressImageBlob(file);
+                applyCustomPhoto(qid, dataUrl);
+                const q = allQuestions.find(item => item.id === qid);
+                showToast(`✅ '${q ? q.title : ''}' 사진이 적용되어 영구 저장되었습니다!`);
+            } catch (e) {
+                showToast('사진을 읽는 중 오류가 발생했습니다.');
+            }
+        }
+
+        async function handleSingleCardFileUpload(qid, event) {
+            const input = event.target;
+            const file = input && input.files && input.files[0];
+            if (!file) return;
+            await handleSingleCardFile(qid, file);
+            input.value = '';
+        }
+
+        async function handleCurrentQuestionFileUpload(event) {
+            const q = activeQuestions[currentIndex];
+            if (!q) return;
+            await handleSingleCardFileUpload(q.id, event);
+        }
+
+        // 화면 어디서나 Ctrl+V로 클립보드 캡처 이미지 붙여넣기 지원
+        window.addEventListener('paste', async (e) => {
+            const items = e.clipboardData && e.clipboardData.items;
+            if (!items) return;
+            for (const item of items) {
+                if (item.type && item.type.startsWith('image/')) {
+                    const blob = item.getAsFile();
+                    if (!blob) continue;
+                    e.preventDefault();
+                    try {
+                        const dataUrl = await compressImageBlob(blob);
+                        const editorOpen = !document.getElementById('editor-modal').classList.contains('hidden');
+                        if (editorOpen) {
+                            setEditorPhotoPreview(dataUrl);
+                            showToast('📋 클립보드 사진을 편집기에 붙여넣었습니다!');
+                        } else if (!document.getElementById('quiz-screen').classList.contains('hidden') && activeQuestions[currentIndex]) {
+                            const q = activeQuestions[currentIndex];
+                            applyCustomPhoto(q.id, dataUrl);
+                            showToast(`📋 '${q.title}' 사진으로 붙여넣기 저장 완료!`);
+                        } else {
+                            showToast('퀴즈 화면이나 문제 편집기에서 Ctrl+V를 누르면 해당 문제 사진으로 저장됩니다.');
+                        }
+                    } catch (err) {}
+                    break;
+                }
+            }
+        });
+
+        /* =====================================================================
+         * 6. 시작 화면 26개 사진 점검 그리드 & 배지 업데이트
+         * ===================================================================== */
+        function setStartAuditFilter(filter) {
+            startAuditFilter = filter;
+            ['all', 'past', 'present', 'bonus'].forEach(k => {
+                const btn = document.getElementById(`audit-filter-${k}`);
+                if (!btn) return;
+                if (k === filter) {
+                    btn.className = 'px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 text-white shadow';
+                } else {
+                    const inactiveMap = {
+                        all: 'px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700',
+                        past: 'px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-100 text-amber-900',
+                        present: 'px-3 py-1.5 rounded-xl text-xs font-bold bg-sky-100 text-blue-900',
+                        bonus: 'px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-100 text-purple-900'
+                    };
+                    btn.className = inactiveMap[k];
+                }
+            });
+            renderStartPhotoGrid();
+        }
+
+        function renderStartPhotoGrid() {
+            const grid = document.getElementById('start-photo-grid');
+            if (!grid) return;
+
+            const filtered = startAuditFilter === 'all'
+                ? allQuestions
+                : allQuestions.filter(q => q.category === startAuditFilter);
+
+            grid.innerHTML = '';
+            filtered.forEach(q => {
+                initPhotoStoreEntry(q);
+                const st = photoStore[q.id];
+                const url = st.status === 'ready' ? st.url : '';
+                const catBadge =
+                    q.category === 'past' ? 'bg-amber-500 text-white' :
+                    q.category === 'present' ? 'bg-blue-600 text-white' :
+                    'bg-purple-600 text-white';
+
+                const card = document.createElement('div');
+                card.className = 'rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden shadow-sm hover:shadow-md transition flex flex-col';
+                card.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    card.classList.add('ring-4', 'ring-indigo-500');
+                });
+                card.addEventListener('dragleave', (e) => {
+                    e.stopPropagation();
+                    card.classList.remove('ring-4', 'ring-indigo-500');
+                });
+                card.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    card.classList.remove('ring-4', 'ring-indigo-500');
+                    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+                    if (file) handleSingleCardFile(q.id, file);
+                });
+                card.innerHTML = `
+                    <div class="relative w-full h-36 bg-slate-900 flex items-center justify-center overflow-hidden p-1">
+                        ${url
+                            ? `<img src="${url}" alt="${escapeHtml(q.title)}" referrerpolicy="no-referrer"
+                                   onerror="handleImgRuntimeError('${q.id}')"
+                                   class="w-full h-full object-contain block">`
+                            : `<div class="flex flex-col items-center justify-center text-center px-2 text-white/85">
+                                   ${st.status === 'failed'
+                                       ? '<span class="text-xl">📷</span><span class="text-[10px] font-bold text-amber-300 mt-0.5">업로드·Ctrl+V 가능</span>'
+                                       : '<div class="spinner" style="width:20px;height:20px;border-width:3px;"></div><span class="text-[10px] mt-1">불러오는 중</span>'
+                                   }
+                               </div>`
+                        }
+                        <span class="absolute top-1.5 left-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow ${catBadge}">
+                            ${escapeHtml(q.page || '')}
+                        </span>
+                        ${q.customPhoto ? '<span class="absolute top-1.5 right-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500 text-white shadow">내 사진</span>' : ''}
+                    </div>
+                    <div class="p-2 flex flex-col gap-1.5 flex-1 justify-between bg-white">
+                        <div>
+                            <p class="font-jua text-sm text-slate-900 truncate" title="${escapeHtml(q.title)}">${escapeHtml(q.title)}</p>
+                            <p class="text-[10px] text-slate-500 truncate">${escapeHtml(q.route || '')}</p>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <button onclick="cyclePhotoForQuestion('${q.id}')"
+                                class="flex-1 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold transition">
+                                🔄 교체
+                            </button>
+                            <label class="flex-1 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-bold text-center cursor-pointer transition">
+                                📁 올리기
+                                <input type="file" accept="image/*" class="hidden" onchange="handleSingleCardFileUpload('${q.id}', event)">
+                            </label>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function updateCategoryBadges() {
+            const p = allQuestions.filter(q => q.category === 'past').length;
+            const n = allQuestions.filter(q => q.category === 'present').length;
+            const b = allQuestions.filter(q => q.category === 'bonus').length;
+            const mix = p + n;
+
+            document.getElementById('badge-count-past').textContent = `${p}문제`;
+            document.getElementById('badge-count-present').textContent = `${n}문제`;
+            document.getElementById('badge-count-all').textContent = `${mix}문제 섞기`;
+            document.getElementById('badge-count-bonus').textContent = `${b}문제`;
+
+            document.getElementById('tab-past').textContent = `🏛️ 옛날 (${p})`;
+            document.getElementById('tab-present').textContent = `🚄 오늘날 (${n})`;
+            document.getElementById('tab-all').textContent = `🔀 전체 섞기 (${mix})`;
+            document.getElementById('tab-bonus').textContent = `🌍 나라마다 독특한 (${b})`;
+            document.getElementById('audit-filter-all').textContent = `전체 (${allQuestions.length})`;
+            const startPreviewBtn = document.getElementById('btn-start-preview-all');
+            if (startPreviewBtn) {
+                startPreviewBtn.innerHTML = `<span>📋</span><span>수업 전 전체 사진·정답 보기 (${allQuestions.length})</span>`;
+            }
+            const prevAllBtn = document.getElementById('prev-f-all');
+            if (prevAllBtn) prevAllBtn.textContent = `전체 (${allQuestions.length})`;
+            const prevPastBtn = document.getElementById('prev-f-past');
+            if (prevPastBtn) prevPastBtn.textContent = `🏛️ 옛날의 교통수단 (${p})`;
+            const prevPresentBtn = document.getElementById('prev-f-present');
+            if (prevPresentBtn) prevPresentBtn.textContent = `🚄 오늘날의 교통수단 (${n})`;
+            const prevBonusBtn = document.getElementById('prev-f-bonus');
+            if (prevBonusBtn) prevBonusBtn.textContent = `🌍 나라마다 독특한 (${b})`;
+        }
+
+        /* =====================================================================
+         * 7. 퀴즈 모드 시작 & 문제 전환 & Web Animations API 비행 엔진
+         * ===================================================================== */
+        function goHome() {
+            stopActiveAnimations();
+            document.body.className = 'min-h-screen flex flex-col';
+            document.getElementById('quiz-screen').classList.add('hidden');
+            document.getElementById('start-screen').classList.remove('hidden');
+            updateHeaderTabStyles('');
+        }
+
+        function startMode(mode) {
+            currentMode = mode;
+            if (mode === 'past') {
+                activeQuestions = allQuestions.filter(q => q.category === 'past');
+            } else if (mode === 'present') {
+                activeQuestions = allQuestions.filter(q => q.category === 'present');
+            } else if (mode === 'bonus') {
+                activeQuestions = allQuestions.filter(q => q.category === 'bonus');
+            } else {
+                activeQuestions = shuffleArray(allQuestions.filter(q => q.category === 'past' || q.category === 'present'));
+            }
+
+            if (activeQuestions.length === 0) {
+                showToast('해당 분류에 등록된 문제가 없습니다. 문제 편집에서 추가해 주세요.');
+                return;
+            }
+
+            currentIndex = 0;
+            document.body.className = `min-h-screen flex flex-col theme-${mode}`;
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('quiz-screen').classList.remove('hidden');
+
+            updateHeaderTabStyles(mode);
+
+            const modeMeta = {
+                past: { pill: '🏛️ 옛날의 교통수단', cls: 'px-3 py-1 rounded-full font-jua text-sm bg-amber-100 text-amber-900 border border-amber-300' },
+                present: { pill: '🚄 오늘날의 교통수단', cls: 'px-3 py-1 rounded-full font-jua text-sm bg-sky-100 text-blue-900 border border-sky-300' },
+                all: { pill: '🔀 옛날+오늘날 섞기', cls: 'px-3 py-1 rounded-full font-jua text-sm bg-teal-100 text-teal-900 border border-teal-300' },
+                bonus: { pill: '🌍 나라마다 독특한 교통수단', cls: 'px-3 py-1 rounded-full font-jua text-sm bg-purple-100 text-purple-900 border border-purple-300' }
+            };
+            const pillEl = document.getElementById('quiz-mode-pill');
+            pillEl.textContent = modeMeta[mode].pill;
+            pillEl.className = modeMeta[mode].cls;
+
+            document.getElementById('banner-text').textContent =
+                currentMode === 'past' ? '옛날의 어떤 교통수단일까요?' :
+                currentMode === 'present' ? '오늘날의 어떤 교통수단일까요?' :
+                currentMode === 'bonus' ? '어느 나라의 어떤 교통수단일까요?' :
+                '어떤 교통수단일까요?';
+
+            loadCurrentQuestion();
+        }
+
+        function updateHeaderTabStyles(activeMode) {
+            ['past', 'present', 'all', 'bonus'].forEach(m => {
+                const btn = document.getElementById(`tab-${m}`);
+                if (!btn) return;
+                if (m === activeMode) {
+                    const activeCls = {
+                        past: 'px-2.5 py-1.5 rounded-xl font-jua text-sm transition bg-amber-500 text-white shadow',
+                        present: 'px-2.5 py-1.5 rounded-xl font-jua text-sm transition bg-blue-600 text-white shadow',
+                        all: 'px-2.5 py-1.5 rounded-xl font-jua text-sm transition bg-teal-600 text-white shadow',
+                        bonus: 'px-2.5 py-1.5 rounded-xl font-jua text-sm transition bg-purple-600 text-white shadow'
+                    };
+                    btn.className = activeCls[m];
+                } else {
+                    btn.className = 'px-2.5 py-1.5 rounded-xl font-jua text-sm transition text-slate-600 hover:bg-white';
+                }
+            });
+        }
+
+        function stopActiveAnimations() {
+            if (currentFlyAnim) {
+                try { currentFlyAnim.cancel(); } catch (e) {}
+                currentFlyAnim = null;
+            }
+            if (peekTimeout) {
+                clearTimeout(peekTimeout);
+                peekTimeout = null;
+            }
+            document.getElementById('fly-card').classList.add('hidden');
+            document.getElementById('peek-overlay').classList.add('hidden');
+        }
+
+        function loadCurrentQuestion() {
+            stopActiveAnimations();
+            isAnswerRevealed = false;
+            currentHintLevel = 0;
+            currentPlayCount = 0;
+
+            const q = activeQuestions[currentIndex];
+            if (!q) return;
+
+            document.getElementById('quiz-counter').textContent = `${currentIndex + 1} / ${activeQuestions.length}`;
+            document.getElementById('quiz-page-badge').textContent = `📖 ${q.page || '교과서'}`;
+            document.getElementById('stage-play-count').textContent = '재생 0회';
+            document.getElementById('btn-hint-label').textContent = '힌트 보기 (0/4)';
+
+            document.getElementById('answer-overlay').classList.add('hidden');
+            document.getElementById('stage-idle-overlay').classList.remove('hidden');
+
+            const hintStack = document.getElementById('hint-stack');
+            hintStack.innerHTML = '';
+            hintStack.classList.add('hidden');
+
+            refreshCurrentQuizPhotoIfVisible();
+        }
+
+        function refreshCurrentQuizPhotoIfVisible() {
+            if (document.getElementById('quiz-screen').classList.contains('hidden')) return;
+            const q = activeQuestions[currentIndex];
+            if (!q) return;
+            initPhotoStoreEntry(q);
+            const st = photoStore[q.id];
+            const statusPill = document.getElementById('stage-photo-status-pill');
+
+            if (st.status === 'ready' && st.url) {
+                statusPill.textContent = '✅ 실제 사진 준비 완료!';
+                statusPill.className = 'mb-3 px-3.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-xs font-bold';
+                document.getElementById('fly-photo').src = st.url;
+                document.getElementById('peek-photo').src = st.url;
+                document.getElementById('answer-photo').src = st.url;
+                document.getElementById('answer-photo').classList.remove('hidden');
+                document.getElementById('answer-photo-fallback').classList.add('hidden');
+            } else if (st.status === 'failed') {
+                statusPill.textContent = '📷 사진을 불러오지 못했어요 · 상단 [📁 사진 넣기] 또는 Ctrl+V!';
+                statusPill.className = 'mb-3 px-3.5 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-200 text-xs font-bold';
+                document.getElementById('answer-photo').classList.add('hidden');
+                document.getElementById('answer-photo-fallback').classList.remove('hidden');
+            } else {
+                statusPill.textContent = '⏳ 실제 사진 불러오는 중...';
+                statusPill.className = 'mb-3 px-3.5 py-1 rounded-full bg-sky-500/20 border border-sky-400/40 text-sky-200 text-xs font-bold';
+            }
+        }
+
+        function cycleCurrentQuestionPhoto() {
+            const q = activeQuestions[currentIndex];
+            if (q) cyclePhotoForQuestion(q.id);
+        }
+
+        function prevQuestion() {
+            if (activeQuestions.length === 0) return;
+            currentIndex = (currentIndex - 1 + activeQuestions.length) % activeQuestions.length;
+            loadCurrentQuestion();
+        }
+
+        function nextQuestion() {
+            if (activeQuestions.length === 0) return;
+            if (currentIndex + 1 >= activeQuestions.length) {
+                showToast('🎉 마지막 문제까지 완료! 첫 번째 문제로 돌아갑니다.');
+                currentIndex = 0;
+            } else {
+                currentIndex += 1;
+            }
+            loadCurrentQuestion();
+        }
+
+        /**
+         * 속도 프리셋 & 슬라이더 제어
+         */
+        function setSpeedPreset(level, autoLaunch) {
+            const map = { 1: 450, 2: 850, 3: 1400, 4: 2300 };
+            currentSpeedLevel = level;
+            currentDurationMs = map[level] || 850;
+            document.getElementById('speed-slider').value = currentDurationMs;
+            updateSpeedUI();
+            if (autoLaunch && !document.getElementById('quiz-screen').classList.contains('hidden')) {
+                launchPhoto();
+            }
+        }
+
+        function onSpeedSliderChange(val) {
+            currentDurationMs = parseInt(val, 10) || 850;
+            currentSpeedLevel = 0;
+            updateSpeedUI();
+        }
+
+        function updateSpeedUI() {
+            const sec = (currentDurationMs / 1000).toFixed(2);
+            document.getElementById('speed-slider-label').textContent = `${sec}초`;
+            const levelText = currentSpeedLevel > 0 ? `${currentSpeedLevel}단계` : '사용자 조절';
+            document.getElementById('stage-speed-badge').textContent = `⚡ ${levelText} (${sec}초)`;
+
+            [1, 2, 3, 4].forEach(lv => {
+                const btn = document.getElementById(`spd-${lv}`);
+                if (!btn) return;
+                if (lv === currentSpeedLevel) {
+                    btn.className = 'px-2.5 py-1.5 rounded-xl text-xs font-bold border transition bg-indigo-600 text-white border-indigo-700 shadow';
+                } else {
+                    btn.className = 'px-2.5 py-1.5 rounded-xl text-xs font-bold border transition bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300';
+                }
+            });
+        }
+
+        /**
+         * 핵심: Web Animations API를 이용한 6가지 궤적 사진 발사
+         */
+        function launchPhoto() {
+            const q = activeQuestions[currentIndex];
+            if (!q) return;
+            initPhotoStoreEntry(q);
+            const st = photoStore[q.id];
+
+            if (!st.url) {
+                showToast('⏳ 사진을 불러오는 중이거나 사진이 없습니다. 잠시 후 다시 시도하거나 사진을 넣어 주세요.');
+                return;
+            }
+
+            if (isAnswerRevealed) {
+                closeAnswerOverlay();
+            }
+            stopActiveAnimations();
+
+            const stage = document.getElementById('stage-board');
+            const flyCard = document.getElementById('fly-card');
+            const flyPhoto = document.getElementById('fly-photo');
+            const idleOverlay = document.getElementById('stage-idle-overlay');
+
+            flyPhoto.src = st.url;
+            idleOverlay.classList.add('hidden');
+            flyCard.classList.remove('hidden');
+
+            currentPlayCount += 1;
+            document.getElementById('stage-play-count').textContent = `재생 ${currentPlayCount}회`;
+            playWhooshSound();
+
+            const sw = stage.clientWidth;
+            const sh = stage.clientHeight;
+            const cw = flyCard.offsetWidth || 540;
+            const ch = flyCard.offsetHeight || 400;
+
+            const useBlur = document.getElementById('motion-blur-toggle').checked;
+            const blurPx = useBlur ? Math.max(0, Math.min(7, Math.round((1500 - currentDurationMs) / 180))) : 0;
+            const midFilter = blurPx > 0 ? `blur(${blurPx}px)` : 'none';
+
+            let mode = currentTrajectory;
+            if (mode === 'random') {
+                const choices = ['lr', 'rl', 'diag', 'arc', 'zoom'];
+                mode = choices[Math.floor(Math.random() * choices.length)];
+            }
+
+            const centerY = Math.max(16, (sh - ch) / 2);
+            const centerX = Math.max(16, (sw - cw) / 2);
+            let keyframes = [];
+
+            if (mode === 'lr') {
+                keyframes = [
+                    { transform: `translate(${-cw - 60}px, ${centerY}px) rotate(-5deg)`, filter: midFilter, opacity: 1 },
+                    { transform: `translate(${centerX}px, ${centerY}px) rotate(0deg)`, filter: midFilter, opacity: 1, offset: 0.5 },
+                    { transform: `translate(${sw + 60}px, ${centerY}px) rotate(5deg)`, filter: midFilter, opacity: 1 }
+                ];
+            } else if (mode === 'rl') {
+                keyframes = [
+                    { transform: `translate(${sw + 60}px, ${centerY}px) rotate(5deg)`, filter: midFilter, opacity: 1 },
+                    { transform: `translate(${centerX}px, ${centerY}px) rotate(0deg)`, filter: midFilter, opacity: 1, offset: 0.5 },
+                    { transform: `translate(${-cw - 60}px, ${centerY}px) rotate(-5deg)`, filter: midFilter, opacity: 1 }
+                ];
+            } else if (mode === 'diag') {
+                keyframes = [
+                    { transform: `translate(${-cw - 50}px, ${sh - ch * 0.4}px) rotate(-10deg)`, filter: midFilter, opacity: 1 },
+                    { transform: `translate(${centerX}px, ${centerY}px) rotate(-2deg)`, filter: midFilter, opacity: 1, offset: 0.5 },
+                    { transform: `translate(${sw + 50}px, ${-ch * 0.6}px) rotate(8deg)`, filter: midFilter, opacity: 1 }
+                ];
+            } else if (mode === 'arc') {
+                const topY = Math.max(12, centerY - 90);
+                keyframes = [
+                    { transform: `translate(${-cw - 40}px, ${sh - ch * 0.5}px) rotate(-12deg)`, filter: midFilter, opacity: 1 },
+                    { transform: `translate(${centerX}px, ${topY}px) rotate(0deg) scale(1.04)`, filter: 'none', opacity: 1, offset: 0.5 },
+                    { transform: `translate(${sw + 40}px, ${sh - ch * 0.5}px) rotate(12deg)`, filter: midFilter, opacity: 1 }
+                ];
+            } else {
+                // zoom: 중앙 줌인 깜빡임
+                keyframes = [
+                    { transform: `translate(${centerX}px, ${centerY}px) scale(0.25)`, opacity: 0, filter: 'blur(4px)' },
+                    { transform: `translate(${centerX}px, ${centerY}px) scale(1.03)`, opacity: 1, filter: 'none', offset: 0.35 },
+                    { transform: `translate(${centerX}px, ${centerY}px) scale(1.0)`, opacity: 1, filter: 'none', offset: 0.68 },
+                    { transform: `translate(${centerX}px, ${centerY}px) scale(1.35)`, opacity: 0, filter: 'blur(6px)' }
+                ];
+            }
+
+            flyCard.style.left = '0px';
+            flyCard.style.top = '0px';
+
+            currentFlyAnim = flyCard.animate(keyframes, {
+                duration: currentDurationMs,
+                easing: mode === 'zoom' ? 'ease-in-out' : 'linear',
+                fill: 'forwards'
+            });
+
+            currentFlyAnim.onfinish = () => {
+                flyCard.classList.add('hidden');
+                if (!isAnswerRevealed) {
+                    idleOverlay.classList.remove('hidden');
+                }
+                currentFlyAnim = null;
+            };
+        }
+
+        /**
+         * 1.5초 정지 사진 엿보기
+         */
+        function peekStaticPhoto() {
+            const q = activeQuestions[currentIndex];
+            if (!q) return;
+            const st = photoStore[q.id];
+            if (!st || !st.url) {
+                showToast('아직 사진이 준비되지 않았습니다.');
+                return;
+            }
+            stopActiveAnimations();
+            playHintSound();
+
+            const overlay = document.getElementById('peek-overlay');
+            const bar = document.getElementById('peek-bar');
+            document.getElementById('peek-photo').src = st.url;
+            overlay.classList.remove('hidden');
+
+            // 진행 바 애니메이션 재시작
+            bar.classList.remove('peek-shrinking');
+            void bar.offsetWidth;
+            bar.classList.add('peek-shrinking');
+
+            peekTimeout = setTimeout(() => {
+                overlay.classList.add('hidden');
+                peekTimeout = null;
+            }, 1500);
+        }
+
+        /**
+         * 4단계 점진적 힌트 (1: 시대·교통로 → 2: 움직이는 힘 → 3: 초성 → 4: 교과서 설명)
+         */
+        function showNextHint() {
+            const q = activeQuestions[currentIndex];
+            if (!q) return;
+            if (currentHintLevel >= 4) {
+                showToast('모든 힌트(4단계)를 이미 공개했습니다!');
+                return;
+            }
+            currentHintLevel += 1;
+            playHintSound();
+            document.getElementById('btn-hint-label').textContent = `힌트 보기 (${currentHintLevel}/4)`;
+
+            const hintStack = document.getElementById('hint-stack');
+            hintStack.classList.remove('hidden');
+
+            const eraMap = { past: '옛날의 교통수단', present: '오늘날의 교통수단', bonus: '나라마다 독특한 교통수단' };
+            let text = '';
+            let badgeCls = '';
+
+            if (currentHintLevel === 1) {
+                text = `1단계 힌트 · [${eraMap[q.category] || q.eraLabel}] 교통로: ${q.route}`;
+                badgeCls = 'bg-amber-400 text-slate-950';
+            } else if (currentHintLevel === 2) {
+                text = `2단계 힌트 · 움직이는 힘: ${q.power}`;
+                badgeCls = 'bg-sky-400 text-slate-950';
+            } else if (currentHintLevel === 3) {
+                text = `3단계 초성 힌트 · [ ${q.choseong || '초성 없음'} ]`;
+                badgeCls = 'bg-fuchsia-500 text-white';
+            } else {
+                text = `4단계 설명 · ${q.description}`;
+                badgeCls = 'bg-emerald-400 text-slate-950';
+            }
+
+            const pill = document.createElement('div');
+            pill.className = `animate-pop px-3.5 py-1.5 rounded-2xl font-bold text-xs sm:text-sm shadow-lg border-2 border-white/80 ${badgeCls}`;
+            pill.textContent = text;
+            hintStack.appendChild(pill);
+        }
+
+        /**
+         * 정답 공개 + 폭죽 + 팡파레 + 모둠 점수 즉시 부여
+         */
+        function revealAnswer() {
+            const q = activeQuestions[currentIndex];
+            if (!q) return;
+            stopActiveAnimations();
+            isAnswerRevealed = true;
+
+            const st = photoStore[q.id];
+            const ansImg = document.getElementById('answer-photo');
+            const ansFallback = document.getElementById('answer-photo-fallback');
+
+            if (st && st.url) {
+                ansImg.src = st.url;
+                ansImg.classList.remove('hidden');
+                ansFallback.classList.add('hidden');
+            } else {
+                ansImg.classList.add('hidden');
+                ansFallback.classList.remove('hidden');
+            }
+
+            const eraMap = { past: '옛날의 교통수단', present: '오늘날', bonus: '나라마다 독특한 교통수단' };
+            document.getElementById('ans-era-badge').textContent = q.eraLabel || eraMap[q.category] || '';
+            document.getElementById('ans-page-badge').textContent = `📖 교과서 ${q.page || ''}`;
+            document.getElementById('ans-title').textContent = q.title;
+            document.getElementById('ans-route').textContent = q.route || '-';
+            document.getElementById('ans-power').textContent = q.power || '-';
+            document.getElementById('ans-desc').textContent = q.description || '';
+
+            renderAnswerQuickScoreButtons();
+            document.getElementById('stage-idle-overlay').classList.add('hidden');
+            document.getElementById('answer-overlay').classList.remove('hidden');
+
+            playFanfareSound();
+            spawnConfetti();
+        }
+
+        function closeAnswerOverlay() {
+            isAnswerRevealed = false;
+            document.getElementById('answer-overlay').classList.add('hidden');
+            document.getElementById('stage-idle-overlay').classList.remove('hidden');
+        }
+
+        function spawnConfetti() {
+            const colors = ['#f59e0b', '#3b82f6', '#10b981', '#ec4899', '#8b5cf6', '#facc15'];
+            const cx = window.innerWidth / 2;
+            const cy = window.innerHeight / 2;
+            for (let i = 0; i < 42; i++) {
+                const el = document.createElement('div');
+                el.className = 'confetti-piece';
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 120 + Math.random() * 320;
+                const tx = Math.cos(angle) * dist;
+                const ty = Math.sin(angle) * dist + 140;
+                el.style.left = `${cx}px`;
+                el.style.top = `${cy}px`;
+                el.style.width = `${8 + Math.random() * 7}px`;
+                el.style.height = `${8 + Math.random() * 10}px`;
+                el.style.backgroundColor = colors[i % colors.length];
+                el.style.setProperty('--tx', `${tx}px`);
+                el.style.setProperty('--ty', `${ty}px`);
+                el.style.setProperty('--rot', `${(Math.random() - 0.5) * 900}deg`);
+                document.body.appendChild(el);
+                setTimeout(() => el.remove(), 1800);
+            }
+        }
+
+        /* =====================================================================
+         * 8. 모둠 점수판 (1~6모둠)
+         * ===================================================================== */
+        function loadScoresFromStorage() {
+            try {
+                const raw = localStorage.getItem(SCORE_STORAGE_KEY);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed) && parsed.length === 6) {
+                        groupScores = parsed;
+                    }
+                }
+            } catch (e) {}
+        }
+
+        function saveScoresToStorage() {
+            try { localStorage.setItem(SCORE_STORAGE_KEY, JSON.stringify(groupScores)); } catch (e) {}
+        }
+
+        function toggleScoreboardDrawer() {
+            const drawer = document.getElementById('scoreboard-drawer');
+            drawer.classList.toggle('translate-x-full');
+            renderScoreboardDrawer();
+        }
+
+        function changeGroupScore(idx, delta) {
+            if (!groupScores[idx]) return;
+            groupScores[idx].score = Math.max(0, groupScores[idx].score + delta);
+            saveScoresToStorage();
+            renderScoreboardDrawer();
+            renderAnswerQuickScoreButtons();
+            if (delta > 0) {
+                playScoreSound();
+                showToast(`🏆 ${groupScores[idx].name} +1점! (현재 ${groupScores[idx].score}점)`);
+            }
+        }
+
+        function renameGroup(idx, newName) {
+            if (!groupScores[idx]) return;
+            groupScores[idx].name = newName.trim() || `${idx + 1}모둠`;
+            saveScoresToStorage();
+            renderAnswerQuickScoreButtons();
+        }
+
+        function resetAllScores() {
+            groupScores.forEach(g => { g.score = 0; });
+            saveScoresToStorage();
+            renderScoreboardDrawer();
+            renderAnswerQuickScoreButtons();
+            showToast('🔄 모든 모둠 점수를 0점으로 초기화했습니다.');
+        }
+
+        function renderScoreboardDrawer() {
+            const list = document.getElementById('scoreboard-list');
+            if (!list) return;
+            const maxScore = Math.max(...groupScores.map(g => g.score), 0);
+            list.innerHTML = '';
+
+            groupScores.forEach((g, idx) => {
+                const isTop = maxScore > 0 && g.score === maxScore;
+                const row = document.createElement('div');
+                row.className = `p-3 rounded-2xl border-2 flex items-center justify-between gap-2 ${isTop ? 'bg-amber-50 border-amber-400 shadow-sm' : 'bg-white border-slate-200'}`;
+                row.innerHTML = `
+                    <div class="flex items-center gap-2 min-w-0 flex-1">
+                        <span class="text-lg">${isTop ? '👑' : '🚩'}</span>
+                        <input type="text" value="${escapeHtml(g.name)}" onchange="renameGroup(${idx}, this.value)"
+                            class="w-full font-jua text-lg text-slate-800 bg-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 rounded px-1">
+                    </div>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        <button onclick="changeGroupScore(${idx}, -1)" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 font-extrabold text-slate-700">-</button>
+                        <span class="font-jua text-2xl text-indigo-700 w-9 text-center">${g.score}</span>
+                        <button onclick="changeGroupScore(${idx}, 1)" class="w-8 h-8 rounded-xl bg-amber-400 hover:bg-amber-500 font-extrabold text-slate-900 shadow">+</button>
+                    </div>
+                `;
+                list.appendChild(row);
+            });
+        }
+
+        function renderAnswerQuickScoreButtons() {
+            const wrap = document.getElementById('answer-quick-score-btns');
+            if (!wrap) return;
+            wrap.innerHTML = '';
+            groupScores.forEach((g, idx) => {
+                const btn = document.createElement('button');
+                btn.onclick = () => changeGroupScore(idx, 1);
+                btn.className = 'py-1.5 px-2 rounded-xl bg-amber-50 hover:bg-amber-200 border border-amber-300 text-amber-950 font-bold text-xs transition flex items-center justify-between';
+                btn.innerHTML = `<span class="truncate">${escapeHtml(g.name)}</span><span class="bg-amber-500 text-white px-1.5 py-0.5 rounded-lg text-[10px]">${g.score}</span>`;
+                wrap.appendChild(btn);
+            });
+        }
+
+        /* =====================================================================
+         * 9. 교과서 비교표 모달 (칸 클릭 가리기/보이기)
+         * ===================================================================== */
+        function openCompareModal() {
+            renderCompareTable();
+            document.getElementById('compare-modal').classList.remove('hidden');
+        }
+
+        function closeCompareModal() {
+            document.getElementById('compare-modal').classList.add('hidden');
+        }
+
+        function renderCompareTable() {
+            const tbody = document.getElementById('compare-table-body');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            COMPARE_ROWS.forEach((r) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="p-3 font-jua text-base text-slate-800 bg-slate-50 border-r border-slate-200">${escapeHtml(r.label)}</td>
+                    <td onclick="toggleSingleCompareCell(this)" data-hidden="false"
+                        class="compare-cell p-3 border-r border-slate-200 cursor-pointer hover:bg-amber-50/80 transition">
+                        <span class="cell-text text-slate-800 font-medium">${escapeHtml(r.past)}</span>
+                        <span class="cell-mask hidden inline-block px-3 py-1 rounded-xl bg-amber-200 text-amber-900 font-jua text-sm">❓ 클릭해서 확인</span>
+                    </td>
+                    <td onclick="toggleSingleCompareCell(this)" data-hidden="false"
+                        class="compare-cell p-3 cursor-pointer hover:bg-sky-50/80 transition">
+                        <span class="cell-text text-slate-800 font-medium">${escapeHtml(r.present)}</span>
+                        <span class="cell-mask hidden inline-block px-3 py-1 rounded-xl bg-sky-200 text-blue-900 font-jua text-sm">❓ 클릭해서 확인</span>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function toggleSingleCompareCell(td) {
+            const isHidden = td.getAttribute('data-hidden') === 'true';
+            setCompareCellHidden(td, !isHidden);
+        }
+
+        function toggleAllCompareCells(hide) {
+            document.querySelectorAll('.compare-cell').forEach(td => setCompareCellHidden(td, hide));
+        }
+
+        function setCompareCellHidden(td, hide) {
+            td.setAttribute('data-hidden', hide ? 'true' : 'false');
+            const txt = td.querySelector('.cell-text');
+            const mask = td.querySelector('.cell-mask');
+            if (hide) {
+                txt.classList.add('hidden');
+                mask.classList.remove('hidden');
+            } else {
+                txt.classList.remove('hidden');
+                mask.classList.add('hidden');
+            }
+        }
+
+        /* =====================================================================
+         * 9-2. 📋 수업 전 전체 사진·정답 미리보기 모달 & 확대 보기
+         * ===================================================================== */
+        function openPreviewAllModal() {
+            updateCategoryBadges();
+            renderPreviewAllModal();
+            document.getElementById('preview-all-modal').classList.remove('hidden');
+        }
+
+        function closePreviewAllModal() {
+            document.getElementById('preview-all-modal').classList.add('hidden');
+        }
+
+        function refreshPreviewAllModalIfOpen() {
+            const modal = document.getElementById('preview-all-modal');
+            if (modal && !modal.classList.contains('hidden')) {
+                renderPreviewAllModal();
+            }
+        }
+
+        function setPreviewAllFilter(filter) {
+            previewAllFilter = filter;
+            ['all', 'past', 'present', 'bonus'].forEach(k => {
+                const btn = document.getElementById(`prev-f-${k}`);
+                if (!btn) return;
+                if (k === filter) {
+                    btn.className = 'px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 text-white shadow';
+                } else {
+                    const inactiveMap = {
+                        all: 'px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-200 text-slate-700',
+                        past: 'px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-100 text-amber-900',
+                        present: 'px-3 py-1.5 rounded-xl text-xs font-bold bg-sky-100 text-blue-900',
+                        bonus: 'px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-100 text-purple-900'
+                    };
+                    btn.className = inactiveMap[k];
+                }
+            });
+            renderPreviewAllModal();
+        }
+
+        function togglePreviewHideAnswers() {
+            previewHideAnswers = !previewHideAnswers;
+            const btn = document.getElementById('btn-toggle-preview-answers');
+            if (btn) {
+                btn.textContent = previewHideAnswers ? '👁️ 정답 모두 보이기' : '🙈 정답 가려보기';
+                btn.className = previewHideAnswers
+                    ? 'px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 hover:bg-amber-500 text-slate-950 border border-amber-500 shadow-sm transition'
+                    : 'px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 shadow-sm transition';
+            }
+            renderPreviewAllModal();
+        }
+
+        function renderPreviewAllModal() {
+            const list = document.getElementById('preview-all-list');
+            if (!list) return;
+
+            const filtered = previewAllFilter === 'all'
+                ? allQuestions
+                : allQuestions.filter(q => q.category === previewAllFilter);
+
+            list.innerHTML = '';
+            if (filtered.length === 0) {
+                list.innerHTML = '<div class="col-span-2 text-center py-12 text-slate-500 font-bold">표시할 문제가 없습니다.</div>';
+                return;
+            }
+
+            filtered.forEach((q, idx) => {
+                initPhotoStoreEntry(q);
+                const st = photoStore[q.id];
+                const url = st.status === 'ready' ? st.url : '';
+
+                const catMeta = {
+                    past: { label: '🏛️ 옛날', cls: 'bg-amber-100 text-amber-900 border-amber-300' },
+                    present: { label: '🚄 오늘날', cls: 'bg-sky-100 text-blue-900 border-sky-300' },
+                    bonus: { label: '🌍 나라마다 독특한', cls: 'bg-purple-100 text-purple-900 border-purple-300' }
+                };
+                const cm = catMeta[q.category] || catMeta.past;
+
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-2xl border-2 border-slate-200 shadow-sm hover:shadow-md transition overflow-hidden flex flex-col';
+                card.innerHTML = `
+                    <!-- 사진 영역 (원본 비율 잘림 없이 크게 표시 · 클릭 시 확대) -->
+                    <div onclick="openPhotoZoom('${q.id}')" title="클릭해서 사진 크게 보기"
+                        class="relative w-full h-56 bg-slate-900 flex items-center justify-center p-1.5 cursor-zoom-in group">
+                        ${url
+                            ? `<img src="${url}" alt="${escapeHtml(q.title)}" referrerpolicy="no-referrer"
+                                   onerror="handleImgRuntimeError('${q.id}')"
+                                   class="w-full h-full object-contain block group-hover:scale-[1.02] transition-transform duration-200">`
+                            : `<div class="flex flex-col items-center justify-center text-white/80">
+                                   ${st.status === 'failed'
+                                       ? '<span class="text-2xl">📷</span><span class="text-xs text-amber-300 font-bold mt-1">사진을 올려주세요</span>'
+                                       : '<div class="spinner"></div><span class="text-xs mt-2">실제 사진 불러오는 중...</span>'
+                                   }
+                               </div>`
+                        }
+                        <span class="absolute top-2 left-2 px-2.5 py-0.5 rounded-full bg-slate-950/80 text-white font-jua text-sm border border-white/20">
+                            ${idx + 1}번
+                        </span>
+                        <span class="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-black/65 text-white text-[11px] font-bold opacity-85 group-hover:opacity-100">
+                            🔍 크게 보기
+                        </span>
+                    </div>
+
+                    <!-- 정답 및 교과서 해설 영역 -->
+                    <div class="p-3.5 flex-1 flex flex-col justify-between gap-2.5">
+                        <div>
+                            <div class="flex items-center flex-wrap gap-1.5 mb-1.5">
+                                <span class="px-2 py-0.5 rounded-full text-[11px] font-bold border ${cm.cls}">${cm.label}</span>
+                                <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">📖 ${escapeHtml(q.page || '교과서')}</span>
+                                ${q.choseong ? `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-fuchsia-50 text-fuchsia-800 border border-fuchsia-200">초성: ${escapeHtml(q.choseong)}</span>` : ''}
+                            </div>
+
+                            ${previewHideAnswers
+                                ? `<div class="py-2 px-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-jua text-lg mb-2">
+                                       ❓ 정답 가려짐 (위 버튼으로 보이기)
+                                   </div>`
+                                : `<h4 class="font-jua text-2xl text-slate-900 mb-1.5">${escapeHtml(q.title)}</h4>`
+                            }
+
+                            <div class="flex flex-wrap gap-1.5 text-[11px] font-bold mb-2">
+                                <span class="px-2 py-1 rounded-lg bg-sky-50 text-sky-900 border border-sky-200">🛣️ 교통로: ${escapeHtml(q.route || '-')}</span>
+                                <span class="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-900 border border-emerald-200">⚡ 힘: ${escapeHtml(q.power || '-')}</span>
+                            </div>
+
+                            <p class="text-xs sm:text-sm text-slate-700 leading-relaxed bg-slate-50 rounded-xl p-2.5 border border-slate-200">
+                                ${escapeHtml(q.description || '')}
+                            </p>
+                        </div>
+
+                        <!-- 빠른 교사 액션 버튼 -->
+                        <div class="flex items-center gap-1.5 pt-2 border-t border-slate-100">
+                            <button onclick="cyclePhotoForQuestion('${q.id}')"
+                                class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
+                                🔄 다른 사진
+                            </button>
+                            <label class="cursor-pointer px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-800 text-xs font-bold transition">
+                                📁 내 사진
+                                <input type="file" accept="image/*" class="hidden" onchange="handleSingleCardFileUpload('${q.id}', event)">
+                            </label>
+                            <button onclick="jumpToQuestionFromPreview('${q.id}')"
+                                class="ml-auto px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-jua text-sm shadow-sm transition">
+                                ▶ 이 문제 풀기
+                            </button>
+                        </div>
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+        }
+
+        function jumpToQuestionFromPreview(qid) {
+            const q = allQuestions.find(item => item.id === qid);
+            if (!q) return;
+            closePreviewAllModal();
+            startMode(q.category);
+            const idx = activeQuestions.findIndex(item => item.id === qid);
+            if (idx >= 0) {
+                currentIndex = idx;
+                loadCurrentQuestion();
+            }
+        }
+
+        function openPhotoZoom(qid) {
+            const q = allQuestions.find(item => item.id === qid);
+            if (!q) return;
+            const st = photoStore[q.id];
+            if (!st || !st.url) {
+                showToast('아직 표시할 사진이 없습니다.');
+                return;
+            }
+            document.getElementById('zoom-badge').textContent = `${q.eraLabel || ''} · ${q.page || ''}`;
+            document.getElementById('zoom-title').textContent = previewHideAnswers ? '❓ 정답 가려짐' : q.title;
+            document.getElementById('zoom-photo').src = st.url;
+            document.getElementById('zoom-desc').textContent = q.description || '';
+            document.getElementById('photo-zoom-modal').classList.remove('hidden');
+        }
+
+        function closePhotoZoom() {
+            document.getElementById('photo-zoom-modal').classList.add('hidden');
+        }
+
+        /* =====================================================================
+         * 10. 교사용 문제 편집기 모달
+         * ===================================================================== */
+        function openEditorModal() {
+            resetEditorForm();
+            renderEditorQuestionList();
+            document.getElementById('editor-modal').classList.remove('hidden');
+        }
+
+        function closeEditorModal() {
+            document.getElementById('editor-modal').classList.add('hidden');
+        }
+
+        function setEditorListFilter(filter) {
+            editorListFilter = filter;
+            ['all', 'past', 'present', 'bonus'].forEach(k => {
+                const btn = document.getElementById(`ed-f-${k}`);
+                if (!btn) return;
+                if (k === filter) {
+                    btn.className = 'px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-800 text-white';
+                } else {
+                    const clsMap = {
+                        all: 'px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700',
+                        past: 'px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-100 text-amber-900',
+                        present: 'px-2.5 py-1 rounded-lg text-xs font-bold bg-sky-100 text-blue-900',
+                        bonus: 'px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-100 text-purple-900'
+                    };
+                    btn.className = clsMap[k];
+                }
+            });
+            renderEditorQuestionList();
+        }
+
+        function renderEditorQuestionList() {
+            const list = document.getElementById('editor-question-list');
+            if (!list) return;
+            const filtered = editorListFilter === 'all'
+                ? allQuestions
+                : allQuestions.filter(q => q.category === editorListFilter);
+
+            list.innerHTML = '';
+            filtered.forEach(q => {
+                initPhotoStoreEntry(q);
+                const url = photoStore[q.id].url || '';
+                const badgeMap = {
+                    past: '<span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-bold">🏛️ 옛날</span>',
+                    present: '<span class="px-1.5 py-0.5 rounded bg-sky-100 text-blue-900 text-[10px] font-bold">🚄 오늘날</span>',
+                    bonus: '<span class="px-1.5 py-0.5 rounded bg-purple-100 text-purple-900 text-[10px] font-bold">🌍 독특한</span>'
+                };
+
+                const row = document.createElement('div');
+                row.className = 'p-2.5 rounded-2xl border border-slate-200 bg-white flex items-center gap-3 hover:border-indigo-300 transition';
+                row.innerHTML = `
+                    <div class="w-16 h-12 rounded-xl bg-slate-900 overflow-hidden shrink-0 flex items-center justify-center p-0.5">
+                        ${url ? `<img src="${url}" alt="" referrerpolicy="no-referrer" class="w-full h-full object-contain">` : '<span class="text-sm">📷</span>'}
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-1.5 mb-0.5">
+                            ${badgeMap[q.category] || ''}
+                            <span class="font-jua text-base text-slate-900 truncate">${escapeHtml(q.title)}</span>
+                            <span class="text-[10px] text-slate-400">${escapeHtml(q.page || '')}</span>
+                        </div>
+                        <p class="text-xs text-slate-500 truncate">${escapeHtml(q.description || '')}</p>
+                    </div>
+                    <div class="flex items-center gap-1 shrink-0">
+                        <button onclick="editQuestionInForm('${q.id}')" class="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold">수정</button>
+                        <button onclick="deleteQuestion('${q.id}')" class="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold">삭제</button>
+                    </div>
+                `;
+                list.appendChild(row);
+            });
+        }
+
+        function editQuestionInForm(qid) {
+            const q = allQuestions.find(item => item.id === qid);
+            if (!q) return;
+            document.getElementById('editor-form-title').textContent = `✏️ '${q.title}' 수정 중`;
+            document.getElementById('form-id').value = q.id;
+            document.getElementById('form-category').value = q.category;
+            document.getElementById('form-page').value = q.page || '';
+            document.getElementById('form-title').value = q.title || '';
+            document.getElementById('form-choseong').value = q.choseong || '';
+            document.getElementById('form-route').value = q.route || '';
+            document.getElementById('form-power').value = q.power || '';
+            document.getElementById('form-desc').value = q.description || '';
+            document.getElementById('commons-search-input').value = q.commons || q.en || q.title || '';
+
+            const curUrl = (photoStore[q.id] && photoStore[q.id].url) || q.customPhoto || '';
+            setEditorPhotoPreview(curUrl);
+        }
+
+        function resetEditorForm() {
+            document.getElementById('editor-form-title').textContent = '➕ 새 문제 추가하기';
+            document.getElementById('form-id').value = '';
+            document.getElementById('form-category').value = 'past';
+            document.getElementById('form-page').value = '';
+            document.getElementById('form-title').value = '';
+            document.getElementById('form-choseong').value = '';
+            document.getElementById('form-route').value = '';
+            document.getElementById('form-power').value = '';
+            document.getElementById('form-desc').value = '';
+            document.getElementById('commons-search-input').value = '';
+            document.getElementById('commons-search-results').innerHTML = '';
+            setEditorPhotoPreview('');
+        }
+
+        function setEditorPhotoPreview(url) {
+            const img = document.getElementById('form-photo-preview');
+            const empty = document.getElementById('form-photo-empty');
+            document.getElementById('form-custom-photo').value = url || '';
+            if (url) {
+                img.src = url;
+                img.classList.remove('hidden');
+                empty.classList.add('hidden');
+            } else {
+                img.src = '';
+                img.classList.add('hidden');
+                empty.classList.remove('hidden');
+            }
+        }
+
+        async function handleEditorFileUpload(event) {
+            const input = event.target;
+            const file = input && input.files && input.files[0];
+            if (!file) return;
+            try {
+                const dataUrl = await compressImageBlob(file);
+                setEditorPhotoPreview(dataUrl);
+                showToast('📸 사진이 선택되었습니다. [💾 문제 저장하기]를 눌러주세요!');
+            } catch (e) {
+                showToast('사진 파일을 읽지 못했습니다.');
+            }
+            input.value = '';
+        }
+
+        async function searchCommonsInEditor() {
+            const query = document.getElementById('commons-search-input').value.trim();
+            if (!query) {
+                showToast('검색어를 입력해 주세요.');
+                return;
+            }
+            const container = document.getElementById('commons-search-results');
+            container.innerHTML = '<div class="col-span-4 text-center py-3 text-xs text-slate-500">🔍 실제 사진 검색 중...</div>';
+
+            const urls = await fetchCommonsPhotos(query, 12);
+            if (urls.length === 0) {
+                container.innerHTML = '<div class="col-span-4 text-center py-3 text-xs text-rose-500">검색 결과가 없습니다. 영문 키워드로 시도해 보세요!</div>';
+                return;
+            }
+            container.innerHTML = '';
+            urls.forEach(u => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.onclick = () => {
+                    setEditorPhotoPreview(u);
+                    showToast('✅ 사진을 선택했습니다. [💾 문제 저장하기]를 눌러주세요!');
+                };
+                btn.className = 'h-16 rounded-lg overflow-hidden bg-slate-900 border-2 border-transparent hover:border-indigo-500 transition flex items-center justify-center p-0.5';
+                btn.innerHTML = `<img src="${u}" referrerpolicy="no-referrer" class="w-full h-full object-contain">`;
+                container.appendChild(btn);
+            });
+        }
+
+        function saveEditorQuestion() {
+            const title = document.getElementById('form-title').value.trim();
+            if (!title) {
+                showToast('정답 이름을 입력해 주세요!');
+                return;
+            }
+            const id = document.getElementById('form-id').value;
+            const category = document.getElementById('form-category').value;
+            const page = document.getElementById('form-page').value.trim() || '교과서';
+            const choseong = document.getElementById('form-choseong').value.trim();
+            const route = document.getElementById('form-route').value.trim();
+            const power = document.getElementById('form-power').value.trim();
+            const description = document.getElementById('form-desc').value.trim();
+            const photoVal = document.getElementById('form-custom-photo').value.trim();
+            const eraMap = { past: '옛날의 교통수단', present: '오늘날', bonus: '나라마다 독특한 교통수단' };
+
+            if (id) {
+                const target = allQuestions.find(q => q.id === id);
+                if (target) {
+                    target.category = category;
+                    target.eraLabel = eraMap[category];
+                    target.page = page;
+                    target.title = title;
+                    target.choseong = choseong;
+                    target.route = route;
+                    target.power = power;
+                    target.description = description;
+                    if (photoVal) {
+                        target.customPhoto = photoVal;
+                        initPhotoStoreEntry(target);
+                        photoStore[target.id].url = photoVal;
+                        photoStore[target.id].status = 'ready';
+                        if (!photoStore[target.id].candidates.includes(photoVal)) {
+                            photoStore[target.id].candidates.unshift(photoVal);
+                        }
+                        photoStore[target.id].candIdx = 0;
+                    }
+                }
+                showToast(`✅ '${title}' 문제가 수정되었습니다!`);
+            } else {
+                const newId = 'custom_' + Date.now();
+                const newQ = {
+                    id: newId,
+                    category,
+                    eraLabel: eraMap[category],
+                    page,
+                    title,
+                    route,
+                    power,
+                    choseong,
+                    description,
+                    ko: title,
+                    en: '',
+                    commons: document.getElementById('commons-search-input').value.trim() || title,
+                    preferKo: true,
+                    preferredCommonsFiles: [],
+                    matchAliases: [title.replace(/\s+/g, '')],
+                    customPhoto: photoVal
+                };
+                allQuestions.push(newQ);
+                initPhotoStoreEntry(newQ);
+                if (!photoVal) {
+                    runPhotoLoadingPipeline(false);
+                }
+                showToast(`➕ '${title}' 새 문제가 추가되었습니다!`);
+            }
+
+            saveQuestionsToStorage();
+            updateCategoryBadges();
+            updatePreloadProgressUI();
+            renderStartPhotoGrid();
+            renderEditorQuestionList();
+            refreshCurrentQuizPhotoIfVisible();
+            refreshPreviewAllModalIfOpen();
+            resetEditorForm();
+        }
+
+        function deleteQuestion(qid) {
+            const idx = allQuestions.findIndex(q => q.id === qid);
+            if (idx === -1) return;
+            const removed = allQuestions.splice(idx, 1)[0];
+            saveQuestionsToStorage();
+            updateCategoryBadges();
+            updatePreloadProgressUI();
+            renderStartPhotoGrid();
+            renderEditorQuestionList();
+            refreshPreviewAllModalIfOpen();
+            showToast(`🗑️ '${removed.title}' 문제를 삭제했습니다.`);
+        }
+
+        function handleResetDefaultsClick() {
+            const btn = document.getElementById('btn-reset-defaults');
+            if (!resetConfirmPending) {
+                resetConfirmPending = true;
+                btn.textContent = '⚠️ 한 번 더 클릭하면 기본값 복원!';
+                setTimeout(() => {
+                    resetConfirmPending = false;
+                    if (btn) btn.textContent = '♻️ 교과서 기본값으로 복원';
+                }, 4000);
+                return;
+            }
+            resetConfirmPending = false;
+            btn.textContent = '♻️ 교과서 기본값으로 복원';
+            allQuestions = JSON.parse(JSON.stringify(TEXTBOOK_QUESTIONS));
+            saveQuestionsToStorage();
+            updateCategoryBadges();
+            renderEditorQuestionList();
+            showToast('♻️ 3-2 사회 교과서 기본 26문제로 복원했습니다!');
+            runPhotoLoadingPipeline(true);
+        }
+
+        /* =====================================================================
+         * 11. 로컬 저장소 및 유틸리티 · 키보드 단축키
+         * ===================================================================== */
+        function saveQuestionsToStorage() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(allQuestions));
+            } catch (e) {
+                showToast('⚠️ 저장 공간이 부족합니다. 사진 크기를 줄이거나 일부를 정리해 주세요.');
+            }
+        }
+
+        function loadQuestionsFromStorage() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        allQuestions = parsed;
+                        return;
+                    }
+                }
+                // 이전 버전(v3, v2, v1)에 직접 업로드한 사진과 추가 문제는 자동 이관하고 기본 사진 목록은 최신화
+                const fresh = JSON.parse(JSON.stringify(TEXTBOOK_QUESTIONS));
+                for (const oldKey of LEGACY_STORAGE_KEYS) {
+                    const legacyRaw = localStorage.getItem(oldKey);
+                    if (!legacyRaw) continue;
+                    const legacyList = JSON.parse(legacyRaw);
+                    if (Array.isArray(legacyList)) {
+                        const customMap = new Map();
+                        const extraQuestions = [];
+                        legacyList.forEach(item => {
+                            if (!item || !item.id) return;
+                            if (item.customPhoto) customMap.set(item.id, item.customPhoto);
+                            if (String(item.id).startsWith('custom_')) extraQuestions.push(item);
+                        });
+                        fresh.forEach(q => {
+                            if (customMap.has(q.id)) q.customPhoto = customMap.get(q.id);
+                        });
+                        extraQuestions.forEach(eq => fresh.push(eq));
+                        break;
+                    }
+                }
+                allQuestions = fresh;
+                return;
+            } catch (e) {}
+            allQuestions = JSON.parse(JSON.stringify(TEXTBOOK_QUESTIONS));
+        }
+
+        function shuffleArray(arr) {
+            const copy = arr.slice();
+            for (let i = copy.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                const tmp = copy[i];
+                copy[i] = copy[j];
+                copy[j] = tmp;
+            }
+            return copy;
+        }
+
+        function escapeHtml(str) {
+            return String(str || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function showToast(msg) {
+            const box = document.getElementById('toast-box');
+            const txt = document.getElementById('toast-msg');
+            txt.textContent = msg;
+            box.classList.remove('opacity-0');
+            box.classList.add('opacity-100');
+            if (toastTimer) clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                box.classList.remove('opacity-100');
+                box.classList.add('opacity-0');
+            }, 3000);
+        }
+
+        // 키보드 수업 단축키 (입력창 포커스 중에는 무시)
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                if (!document.getElementById('photo-zoom-modal').classList.contains('hidden')) {
+                    closePhotoZoom();
+                    return;
+                }
+                if (!document.getElementById('preview-all-modal').classList.contains('hidden')) {
+                    closePreviewAllModal();
+                    return;
+                }
+                if (!document.getElementById('compare-modal').classList.contains('hidden')) {
+                    closeCompareModal();
+                    return;
+                }
+                if (!document.getElementById('editor-modal').classList.contains('hidden')) {
+                    closeEditorModal();
+                    return;
+                }
+            }
+            const tag = (document.activeElement && document.activeElement.tagName || '').toLowerCase();
+            if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+            if (document.getElementById('quiz-screen').classList.contains('hidden')) return;
+            if (!document.getElementById('editor-modal').classList.contains('hidden')) return;
+            if (!document.getElementById('compare-modal').classList.contains('hidden')) return;
+            if (!document.getElementById('preview-all-modal').classList.contains('hidden')) return;
+
+            if (e.code === 'Space') {
+                e.preventDefault();
+                launchPhoto();
+            } else if (e.key === '1' || e.key === '2' || e.key === '3' || e.key === '4') {
+                setSpeedPreset(parseInt(e.key, 10), true);
+            } else if (e.key === 'h' || e.key === 'H') {
+                showNextHint();
+            } else if (e.key === 'p' || e.key === 'P') {
+                peekStaticPhoto();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (isAnswerRevealed) {
+                    nextQuestion();
+                } else {
+                    revealAnswer();
+                }
+            } else if (e.key === 'ArrowRight') {
+                nextQuestion();
+            } else if (e.key === 'ArrowLeft') {
+                prevQuestion();
+            }
+        });
+
+        /* =====================================================================
+         * 12. 초기화 (DOM 로드 완료 후 실행)
+         * ===================================================================== */
+        window.addEventListener('DOMContentLoaded', () => {
+            loadQuestionsFromStorage();
+            loadScoresFromStorage();
+            updateCategoryBadges();
+            updateSpeedUI();
+            renderStartPhotoGrid();
+            renderScoreboardDrawer();
+
+            // 시작 화면 사진 영역 드래그 앤 드롭 일괄 적용 지원
+            const photoSection = document.getElementById('start-photo-section');
+            if (photoSection) {
+                photoSection.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    photoSection.classList.add('drop-active');
+                });
+                photoSection.addEventListener('dragleave', () => {
+                    photoSection.classList.remove('drop-active');
+                });
+                photoSection.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    photoSection.classList.remove('drop-active');
+                    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                        handleBatchFileUpload(e.dataTransfer.files);
+                    }
+                });
+            }
+
+            // 퀴즈 무대 및 정답 화면에서도 이미지 파일을 바로 끌어다 놓아 현재 문제 사진 교체 지원
+            const stageBoard = document.getElementById('stage-board');
+            if (stageBoard) {
+                stageBoard.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    stageBoard.classList.add('ring-4', 'ring-amber-400');
+                });
+                stageBoard.addEventListener('dragleave', () => {
+                    stageBoard.classList.remove('ring-4', 'ring-amber-400');
+                });
+                stageBoard.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    stageBoard.classList.remove('ring-4', 'ring-amber-400');
+                    const q = activeQuestions[currentIndex];
+                    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+                    if (q && file) {
+                        handleSingleCardFile(q.id, file);
+                    }
+                });
+            }
+
+            // 3단계 실제 사진 로딩 파이프라인 즉시 가동
+            runPhotoLoadingPipeline(false);
+        });
+    </script>
+</body>
+</html>
